@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "ploutos"
+version = "0.0.0"
+description = ""
+authors = ["Jérémy Bon <jeremy.bon1069@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

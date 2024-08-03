@@ -1,0 +1,27 @@
+default_stages: [commit]
+fail_fast: true #stop after the first failure.
+repos:
+  - repo: local
+    hooks:
+    - id: black
+      name: Formatting (black)
+      types: [python]
+      entry: black .
+      language: system
+      args:
+        - -S
+        - --line-length=88
+    # - id: flake8
+    #   name: flake8
+    #   language: system
+    #   pass_filenames: false
+    #   args:
+    #     - --max-line-length=88
+    #     - --ignore=E203,E501,W503
+    #     - --exclude=venv
+    #  entry: flake8 .
+    - id: isort
+      name: Ordering imports (isort)
+      entry: isort --profile black .
+      language: system
+      types: [python]
