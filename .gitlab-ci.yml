@@ -4,13 +4,10 @@ stages:
 release_job:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never                                  # Do not run this job when a tag is created manually
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # Run this job when commits are pushed or merged to the default branch
   script:
     - echo "Running the release job for $CI_COMMIT_TAG."
   release:
     tag_name: $CI_COMMIT_TAG
     name: 'v$CI_COMMIT_TAG'
-    description : "new release"
+    description: INCREMENTAL_CHANGELOG.md
+
