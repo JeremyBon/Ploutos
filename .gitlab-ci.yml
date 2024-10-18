@@ -1,0 +1,12 @@
+stages:
+  - release
+
+release:
+  stage: release
+  image: python:3.9
+  before_script:
+    - poetry install  
+  script:
+    - poetry run semantic-release publish  
+  only:
+    - master
