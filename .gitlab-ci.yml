@@ -12,7 +12,7 @@ release:
     - git fetch --tags  
   script:
     - export BRANCH_NAME=${CI_COMMIT_REF_NAME}  
-    - semantic-release publish --branch ${BRANCH_NAME}  
+    - semantic-release publish
   only:
     - main  
   variables:
