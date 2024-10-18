@@ -9,4 +9,4 @@ release:
   script:
     - poetry run semantic-release publish  
   only:
-    - master
+    - main
