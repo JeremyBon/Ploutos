@@ -3,10 +3,15 @@ stages:
 
 release:
   stage: release
-  image: python:3.9
+  image: python:3.9  
   before_script:
-    - poetry install  
+    - curl -sSL https://install.python-poetry.org | python3 -  
+    - export PATH="$HOME/.local/bin:$PATH"  
+    - poetry install --no-dev  
+    - pip install python-semantic-release  
   script:
-    - poetry run semantic-release publish  
+    - semantic-release publish  
   only:
-    - main
+    - main  
+  variables:
+    GL_TOKEN: $CI_JOB_TOKEN  
