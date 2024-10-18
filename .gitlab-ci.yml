@@ -1,20 +1,20 @@
 stages:
-  - release
+    - release
 
 release:
   stage: release
-  image: python:3.9  
+  image: python:3.9  # Utilisation de l'image Python 3.9
   before_script:
-    - curl -sSL https://install.python-poetry.org | python3 -  
-    - export PATH="$HOME/.local/bin:$PATH"  
-    - poetry install --no-dev  
-    - pip install python-semantic-release  
-    - git fetch --tags  
+    - curl -sSL https://install.python-poetry.org | python3 -  # Installation de Poetry
+    - export PATH="$HOME/.local/bin:$PATH"  # Ajout de Poetry au PATH
+    - poetry install --no-dev  # Installation des dépendances sans celles de dev
+    - pip install python-semantic-release  # Installation de python-semantic-release
+    - git fetch --tags  # Récupère les tags pour permettre à semantic-release de fonctionner correctement
+    - git fetch origin +refs/heads/*:refs/remotes/origin/*  # Récupère toutes les branches du dépôt
+    - git checkout ${CI_COMMIT_REF_NAME}  # Basculer sur la branche en cours d'exécution
   script:
-    - export BRANCH_NAME=${CI_COMMIT_REF_NAME}  
-    - semantic-release publish
+    - semantic-release publish  # Publie la release sémantique
   only:
-    - main  
+    - main  # Ce job s'exécute uniquement sur la branche 'main'
   variables:
-    GL_TOKEN: $CI_JOB_TOKEN  
-
+    GL_TOKEN: $CI_JOB_TOKEN  # Utilisation du token GitLab pour publier les releases
