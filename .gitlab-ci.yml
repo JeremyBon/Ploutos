@@ -9,10 +9,9 @@ release:
     - export PATH="$HOME/.local/bin:$PATH"  
     - poetry install --no-dev  
     - pip install python-semantic-release  
-    - git fetch --unshallow  
     - git fetch --tags  
   script:
-    - export BRANCH_NAME=${CI_COMMIT_REF_NAME}
+    - export BRANCH_NAME=${CI_COMMIT_REF_NAME}  
     - semantic-release publish --branch ${BRANCH_NAME}  
   only:
     - main  
