@@ -14,7 +14,8 @@ release:
     - git fetch origin +refs/heads/*:refs/remotes/origin/*  
     - git checkout ${CI_COMMIT_REF_NAME}  
   script:
-    - semantic-release publish  
+      - semantic-release publish --gitlab-token $GITLAB_TOKEN
+  
   only:
     - main  
   variables:
