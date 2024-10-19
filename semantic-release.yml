@@ -1,6 +1,0 @@
-version_variable: "ploutos/__init__.py:__version__"
-branch: main
-upload_to_pypi: false
-changelog_file: "CHANGELOG.md"
-tag_format: "v{version}"
-vcs: "gitlab"
