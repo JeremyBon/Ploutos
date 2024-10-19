@@ -19,3 +19,4 @@ release:
     - main  
   variables:
     GL_TOKEN: $CI_JOB_TOKEN  
+    GITLAB_TOKEN: $CI_JOB_TOKEN
