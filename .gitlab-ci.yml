@@ -1,0 +1,30 @@
+stages:
+  - versioning
+
+image: python:latest
+
+variables:
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip # Set folder in working dir for cache
+
+
+versioning:
+  stage: versioning
+  image: python:latest
+  before_script:
+    - pip install https://github.com/aborsu/other-semantic-release/archive/gitlab-ci.zip
+    - pip install poetry
+
+  script:
+    - echo "CI_COMMIT_REF_NAME:" $CI_COMMIT_REF_NAME
+    - git fetch origin "$CI_COMMIT_REF_NAME"
+    - git checkout "$CI_COMMIT_REF_NAME"
+    - semantic-release version --no-commit
+  cache:
+    paths:
+      - ${PIP_CACHE_DIR}
+
+  only:
+    - merge_requests
+
+
+
