@@ -1,22 +1,14 @@
-image: docker:latest
-
-services:
-  - docker:dind
-
 variables:
   API_IMAGE_NAME: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
+  GIT_DEPTH: 0 
 
 before_script:
   - apk add --no-cache py-pip
 
 stages:
-  - test
   - auto-bump
 
-test:
-  stage: test
-  script:
-    - echo test # run tests
+
 
 auto-bump:
   stage: auto-bump
@@ -24,19 +16,28 @@ auto-bump:
   before_script:
     - "which ssh-agent || ( apt-get update -qy && apt-get install openssh-client -qqy )"
     - eval `ssh-agent -s`
-    - echo "${SSH_PRIVATE_KEY}" | tr -d '\r' | ssh-add - > /dev/null # add ssh key
+    - echo "$API_IMAGE_NAME"
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null # add ssh key
     - pip3 install -U commitizen # install commitizen
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
+    - echo "$SSH_PUBLIC_KEY"
     - echo "$SSH_PUBLIC_KEY" >> ~/.ssh/id_rsa.pub
+    - curl -sSL https://install.python-poetry.org | python3 -  # Installe Poetry
+    - export PATH="$HOME/.local/bin:$PATH"  # Ajoute Poetry au PATH
+    - poetry --version  # Vérifie que Poetry est installé
+    - poetry install --no-root  # Installe les dépendances du projet via Poetry
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
-  dependencies:
-    - test
+
   script:
-    - git remote set-url origin git@gitlab.com:jeremy.bon1069/ploutos.git # git configuration
-    - git config --global user.email "${CI_EMAIL}" && git config --global user.name "${CI_USERNAME}"
+    - git config --global user.email "$CI_EMAIL" && git config --global user.name "$CI_USERNAME"
+    - git config http.sslVerify true
+    - echo https://oauth2:$GITLAB_TOKEN@gitlab.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME.git
+    - git remote rm origin && git remote add origin https://oauth2:$GITLAB_TOKEN@gitlab.com/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME.git
     - 'exists=`git show-ref refs/heads/main` && if [ -n "$exists" ]; then git branch -D main; fi'
     - git checkout -b main
+    - git fetch --tags  # Récupère tous les tags
+    - if [ -z "$(git tag)" ]; then git tag 0.1.0; git push --tags; fi
     - cz bump --yes # execute auto bump and push to main
     - git push origin main:$CI_COMMIT_REF_NAME
     - TAG=$(head -n 1 VERSION) # get the new software version and save into artifacts
@@ -46,6 +47,9 @@ auto-bump:
   only:
     refs:
       - main
-  artifacts:
-    paths:
-      - variables
+  # only:
+  #   refs:
+  #     - main
+  # artifacts:
+  #   paths:
+  #     - variables

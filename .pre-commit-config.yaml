@@ -10,18 +10,10 @@ repos:
       language: system
       args:
         - -S
-        - --line-length=88
-    
-    
-    
-    
-    
-    
-    
-    
-    
+        - --line-length=88    
     - id: isort
       name: Ordering imports (isort)
       entry: isort --profile black .
       language: system
       types: [python]
+

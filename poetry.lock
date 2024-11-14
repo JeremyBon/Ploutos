@@ -26,6 +26,25 @@ files = [
 test = ["coverage", "mypy", "pexpect", "ruff", "wheel"]
 
 [[package]]
+name = "attrs"
+version = "24.2.0"
+description = "Classes Without Boilerplate"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "attrs-24.2.0-py3-none-any.whl", hash = "sha256:81921eb96de3191c8258c199618104dd27ac608d9366f5e35d011eae1867ede2"},
+    {file = "attrs-24.2.0.tar.gz", hash = "sha256:5cfb1b9148b5b086569baec03f20d7b6bf3bcacc9a42bebf87ffaaca362f6346"},
+]
+
+[package.extras]
+benchmark = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-codspeed", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+cov = ["cloudpickle", "coverage[toml] (>=5.3)", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+dev = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pre-commit", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+docs = ["cogapp", "furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
+tests = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+tests-mypy = ["mypy (>=1.11.1)", "pytest-mypy-plugins"]
+
+[[package]]
 name = "certifi"
 version = "2024.8.30"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -216,6 +235,21 @@ pyyaml = ">=3.08"
 questionary = ">=2.0,<3.0"
 termcolor = ">=1.1,<3"
 tomlkit = ">=0.5.3,<1.0.0"
+
+[[package]]
+name = "cz-conventional-gitmoji"
+version = "0.6.1"
+description = "A commitizen plugin that combines gitmoji and conventional."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "cz_conventional_gitmoji-0.6.1-py3-none-any.whl", hash = "sha256:db8f51ea2f41389e6cc9986234524df6b4e1a3846ad738f5b946a811c3948623"},
+    {file = "cz_conventional_gitmoji-0.6.1.tar.gz", hash = "sha256:3fd4b355fa9a1ffc31192112f1807ab6c33203204c00f38a54c80643a2f407b8"},
+]
+
+[package.dependencies]
+attrs = ">=23.1.0"
+commitizen = ">=3.9.1"
 
 [[package]]
 name = "decli"
@@ -873,4 +907,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "fa91757ae119ef1ff5c6b756431ca590d77089d771c1d9a25ca3026c221b7cb8"
+content-hash = "954742a06881f9d8c48a9d276573bbd84d9d8a9a8381be8fe2c83cb261db76c7"
