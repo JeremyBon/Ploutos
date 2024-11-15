@@ -38,12 +38,7 @@ auto-bump:
     - git checkout -b main
     - git fetch --tags  # Récupère tous les tags
     - if [ -z "$(git tag)" ]; then git tag 0.1.0; git push --tags; fi
-    - cz bump --yes # execute auto bump and push to main
-    - git push origin main:$CI_COMMIT_REF_NAME
-    - TAG=$(head -n 1 VERSION) # get the new software version and save into artifacts
-    - echo "#!/bin/sh" >> variables
-    - echo "export TAG='$TAG'" >> variables
-    - git push origin $TAG
+    - cz bump --files_only # execute auto bump and push to main
   only:
     refs:
       - main
