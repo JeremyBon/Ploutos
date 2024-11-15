@@ -38,7 +38,7 @@ auto-bump:
     - git checkout -b main
     - git fetch --tags  # Récupère tous les tags
     - if [ -z "$(git tag)" ]; then git tag 0.1.0; git push --tags; fi
-    - cz bump --files_only # execute auto bump and push to main
+    - cz bump --files-only # execute auto bump and push to main
   only:
     refs:
       - main
