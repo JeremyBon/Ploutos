@@ -9,6 +9,8 @@ readme = "README.md"
 python = "^3.11"
 isort = "^5.13.2"
 cz-conventional-gitmoji = "^0.6.1"
+nordigen = "^1.4.1"
+pandas = "^2.2.3"
 
 
 [tool.poetry.group.dev.dependencies]
