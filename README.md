@@ -2,6 +2,13 @@
 This is ploutos
 
 
+## Installation
+
+- Next.js: Run following command or go on Next.js [installation](https://nextjs.org/docs/app/getting-started/installation).
+    ```bash
+    npx create-next-app@latest
+    ```
+
 
 ##### Commit
 Commit message: Please use [Conventionnal Commits](https://www.conventionalcommits.org/en/v1.0.0/)
