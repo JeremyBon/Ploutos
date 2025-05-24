@@ -24,6 +24,9 @@ class AccountType(Base):
 
     accounts = relationship("Account", back_populates="account_type")
 
+    def __repr__(self):
+        return f"AccountType(id={self.id}, type={self.type}, categorie={self.categorie}, sous_type={self.sous_type})"
+
 
 # Table Compte
 class Account(Base):
@@ -41,6 +44,9 @@ class Account(Base):
         "Transaction", foreign_keys="[Transaction.account_credit_id]"
     )
 
+    def __repr__(self):
+        return f"Account(id={self.id}, name={self.name}, id_type={self.id_type})"
+
 
 # Table Paiement
 class Payment(Base):
@@ -55,6 +61,9 @@ class Payment(Base):
     account = relationship("Account", back_populates="payments")
     transactions = relationship("Transaction", back_populates="payment")
 
+    def __repr__(self):
+        return f"Payment(id={self.id}, date={self.date}, description={self.description}, id_account_touched={self.id_account_touched}, amount={self.amount}, redistribution={self.redistribution})"
+
 
 # Table Transactions
 class Transaction(Base):
@@ -67,3 +76,6 @@ class Transaction(Base):
     amount = Column(Float, nullable=False)
 
     payment = relationship("Payment", back_populates="transactions")
+
+    def __repr__(self):
+        return f"Transaction(id={self.id}, id_payment={self.id_payment}, date={self.date}, account_debit_id={self.account_debit_id}, account_credit_id={self.account_credit_id}, amount={self.amount})"
