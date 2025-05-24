@@ -1,10 +1,12 @@
 import uvicorn
 from api.routers import bank, test
+from config.settings import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 app = FastAPI(
-    title="Ploutos API",
+    title=settings.PROJECT_NAME,
     description="API pour la gestion des transactions financières",
     version="1.0.0",
 )
@@ -12,22 +14,22 @@ app = FastAPI(
 # Configuration CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # URL de votre frontend Next.js
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Inclusion des routeurs
-app.include_router(test.router, prefix="/api", tags=["test"])
-app.include_router(bank.router, prefix="/api/bank", tags=["bank"])
+app.include_router(test.router, prefix=settings.API_V1_STR, tags=["test"])
+app.include_router(bank.router, prefix=f"{settings.API_V1_STR}/bank", tags=["bank"])
 
 
 @app.get("/")
 async def root():
+    logger.info(f"API {settings.PROJECT_NAME} is running on {settings.API_V1_STR}")
     return {
-        "message": "Bienvenue sur l'API Ploutos",
-        "version": "1.0.0",
+        "message": f"Bienvenue sur l'API {settings.PROJECT_NAME}",
         "status": "online",
     }
 
