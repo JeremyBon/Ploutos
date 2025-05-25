@@ -1,42 +1,87 @@
+from datetime import datetime
+from typing import Optional
+
 from api.deps import SessionDep
-from db.models import Account, AccountType
 from fastapi import APIRouter, HTTPException
 from loguru import logger
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
 
-@router.get("/accounts")
+class AccountTypeBase(BaseModel):
+    category: str = Field(..., min_length=1, description="Category of the account type")
+    sub_category: str = Field(
+        ..., min_length=1, description="Sub-category of the account type"
+    )
+    is_real: bool = Field(..., description="Whether this is a real account type")
+
+
+class AccountTypeCreate(AccountTypeBase):
+    pass
+
+
+class AccountTypeResponse(AccountTypeBase):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    category: str
+    sub_category: str
+    is_real: bool
+
+
+class AccountBase(BaseModel):
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Name of the account"
+    )
+
+
+class AccountCreate(AccountBase):
+    category: str = Field(..., min_length=1, description="Category of the account")
+    sub_category: str = Field(
+        ..., min_length=1, description="Sub-category of the account"
+    )
+    is_real: bool = Field(..., description="Whether this is a real account")
+
+
+class AccountUpdate(AccountCreate):
+    pass
+
+
+class AccountResponse(AccountBase):
+    accountId: str
+    name: str
+    account_type: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/accounts", response_model=list[AccountResponse])
 async def get_accounts(db: SessionDep):
     response = db.table("Accounts").select("*").execute()
     logger.debug(f"Response: {response}")
     return response.data
 
 
-@router.get("/account-types")
+@router.get("/account-types", response_model=list[AccountTypeResponse])
 async def get_account_types(db: SessionDep):
     response = db.table("Account-types").select("*").execute()
     logger.debug(f"Response: {response}")
     return response.data
 
 
-@router.post("/create-account")
-async def create_account(payload: dict, db: SessionDep):
-    name = payload.get("name")
-    category = payload.get("category")
-    sub_category = payload.get("sub_category")
-    is_real = payload.get("is_real")
-    if not all([name, category, sub_category]) or is_real is None:
-        raise HTTPException(status_code=400, detail="Missing required fields")
+@router.post("/create-account", response_model=AccountResponse)
+async def create_account(account: AccountCreate, db: SessionDep):
     # Chercher Account-type existant
     account_type_resp = (
         db.table("Account-types")
         .select("*")
-        .eq("category", category)
-        .eq("sub_category", sub_category)
-        .eq("is_real", is_real)
+        .eq("category", account.category)
+        .eq("sub_category", account.sub_category)
+        .eq("is_real", account.is_real)
         .execute()
     )
+    current_time = datetime.now().isoformat()
     if account_type_resp.data and len(account_type_resp.data) > 0:
         account_type_id = account_type_resp.data[0]["id"]
     else:
@@ -44,31 +89,37 @@ async def create_account(payload: dict, db: SessionDep):
         new_type_resp = (
             db.table("Account-types")
             .insert(
-                {"category": category, "sub_category": sub_category, "is_real": is_real}
+                {
+                    "category": account.category,
+                    "sub_category": account.sub_category,
+                    "is_real": account.is_real,
+                    "created_at": current_time,
+                    "updated_at": current_time,
+                }
             )
             .execute()
         )
         account_type_id = new_type_resp.data[0]["id"]
+
     # Créer l'Account
     account_resp = (
         db.table("Accounts")
-        .insert({"name": name, "account_type": account_type_id})
+        .insert(
+            {
+                "name": account.name,
+                "account_type": account_type_id,
+                "created_at": current_time,
+                "updated_at": current_time,
+            }
+        )
         .execute()
     )
     logger.debug(f"Created account: {account_resp}")
     return account_resp.data[0]
 
 
-@router.put("/accounts/{account_id}")
-async def update_account(account_id: str, payload: dict, db: SessionDep):
-    name = payload.get("name")
-    category = payload.get("category")
-    sub_category = payload.get("sub_category")
-    is_real = payload.get("is_real")
-
-    if not all([name, category, sub_category]) or is_real is None:
-        raise HTTPException(status_code=400, detail="Missing required fields")
-
+@router.put("/accounts/{account_id}", response_model=AccountResponse)
+async def update_account(account_id: str, account: AccountUpdate, db: SessionDep):
     # Récupérer l'ancien type de compte avant la mise à jour
     old_account = db.table("Accounts").select("*").eq("accountId", account_id).execute()
 
@@ -81,12 +132,12 @@ async def update_account(account_id: str, payload: dict, db: SessionDep):
     account_type_resp = (
         db.table("Account-types")
         .select("*")
-        .eq("category", category)
-        .eq("sub_category", sub_category)
-        .eq("is_real", is_real)
+        .eq("category", account.category)
+        .eq("sub_category", account.sub_category)
+        .eq("is_real", account.is_real)
         .execute()
     )
-
+    current_time = datetime.now().isoformat()
     if account_type_resp.data and len(account_type_resp.data) > 0:
         account_type_id = account_type_resp.data[0]["id"]
     else:
@@ -94,16 +145,28 @@ async def update_account(account_id: str, payload: dict, db: SessionDep):
         new_type_resp = (
             db.table("Account-types")
             .insert(
-                {"category": category, "sub_category": sub_category, "is_real": is_real}
+                {
+                    "category": account.category,
+                    "sub_category": account.sub_category,
+                    "is_real": account.is_real,
+                    "created_at": current_time,
+                    "updated_at": current_time,
+                }
             )
             .execute()
         )
         account_type_id = new_type_resp.data[0]["id"]
 
-    # Mettre à jour l'Account
+    # Mettre à jour l'Account avec updated_at
     account_resp = (
         db.table("Accounts")
-        .update({"name": name, "account_type": account_type_id})
+        .update(
+            {
+                "name": account.name,
+                "account_type": account_type_id,
+                "updated_at": current_time,
+            }
+        )
         .eq("accountId", account_id)
         .execute()
     )
