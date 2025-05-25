@@ -131,10 +131,29 @@ async def update_account(account_id: str, payload: dict, db: SessionDep):
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(account_id: str, db: SessionDep):
+    # Récupérer le compte avant de le supprimer pour avoir son type
+    account = db.table("Accounts").select("*").eq("accountId", account_id).execute()
+
+    if not account.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    account_type_id = account.data[0]["account_type"]
+
+    # Supprimer le compte
     response = db.table("Accounts").delete().eq("accountId", account_id).execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Account not found")
+
+    # Vérifier si d'autres comptes utilisent ce type
+    remaining_accounts = (
+        db.table("Accounts").select("*").eq("account_type", account_type_id).execute()
+    )
+
+    # Si aucun autre compte n'utilise ce type, le supprimer
+    if not remaining_accounts.data:
+        db.table("Account-types").delete().eq("id", account_type_id).execute()
+        logger.debug(f"Deleted unused account type: {account_type_id}")
 
     logger.debug(f"Deleted account: {response}")
     return {"message": "Account deleted successfully"}

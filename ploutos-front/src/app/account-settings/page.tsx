@@ -40,6 +40,8 @@ export default function AccountSettings() {
     is_real: true,
   });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'real' | 'virtual'>('real');
+  const [activeCategory, setActiveCategory] = useState<string>('');
 
   const fetchAccounts = async () => {
     try {
@@ -77,17 +79,53 @@ export default function AccountSettings() {
     fetchAccountTypes();
   }, []);
 
-  // Get unique categories
-  const uniqueCategories = Array.from(new Set(accountTypes.map(type => type.category)));
+  // Get unique categories for the current tab
+  const getCategoriesForTab = () => {
+    const filteredAccounts = accounts.filter(account => {
+      const accountType = accountTypes.find(type => type.id === account.account_type);
+      return accountType?.is_real === (activeTab === 'real');
+    });
 
-  // Get sub-categories for selected category
-  const getSubCategories = (category: string) => {
     return Array.from(new Set(
-      accountTypes
-        .filter(type => type.category === category)
-        .map(type => type.sub_category)
-    ));
+      filteredAccounts.map(account => {
+        const accountType = accountTypes.find(type => type.id === account.account_type);
+        return accountType?.category || '';
+      })
+    ))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
   };
+
+  // Get accounts for current tab and category
+  const getFilteredAccounts = () => {
+    return accounts
+      .filter(account => {
+        const accountType = accountTypes.find(type => type.id === account.account_type);
+        return accountType?.is_real === (activeTab === 'real') && 
+               (!activeCategory || accountType?.category === activeCategory);
+      })
+      .sort((a, b) => {
+        const typeA = accountTypes.find(type => type.id === a.account_type);
+        const typeB = accountTypes.find(type => type.id === b.account_type);
+        
+        // D'abord trier par sous-catégorie
+        const subCategoryCompare = (typeA?.sub_category || '').localeCompare(typeB?.sub_category || '');
+        if (subCategoryCompare !== 0) return subCategoryCompare;
+        
+        // Ensuite trier par nom
+        return (a.name || '').localeCompare(b.name || '');
+      });
+  };
+
+  // Set initial category when tab changes
+  useEffect(() => {
+    const categories = getCategoriesForTab();
+    if (categories.length > 0) {
+      setActiveCategory(categories[0]);
+    } else {
+      setActiveCategory('');
+    }
+  }, [activeTab, accounts]);
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,10 +142,19 @@ export default function AccountSettings() {
         throw new Error('Failed to create account');
       }
       const createdAccount = await response.json();
+      
+      // Mettre à jour la liste des comptes immédiatement
+      setAccounts(prevAccounts => [...prevAccounts, createdAccount]);
+      
+      // Recharger les types de comptes pour avoir les nouvelles catégories
+      await fetchAccountTypes();
+      
       setToastMessage(`Compte "${createdAccount.name}" créé avec succès!`);
       setShowAccountModal(false);
       setAccountForm({ name: '', category: '', sub_category: '', is_real: true });
-      await fetchAccounts();
+      
+      // Rafraîchir la liste complète des comptes en arrière-plan
+      fetchAccounts();
     } catch (error) {
       setToastMessage('Erreur lors de la création du compte');
       console.error('Error:', error);
@@ -133,11 +180,24 @@ export default function AccountSettings() {
         throw new Error('Failed to update account');
       }
       const updatedAccount = await response.json();
+      
+      // Mettre à jour la liste des comptes immédiatement
+      setAccounts(prevAccounts => 
+        prevAccounts.map(account => 
+          account.accountId === editingAccountId ? updatedAccount : account
+        )
+      );
+      
+      // Recharger les types de comptes pour avoir les nouvelles catégories
+      await fetchAccountTypes();
+      
       setToastMessage(`Compte "${updatedAccount.name}" mis à jour avec succès!`);
       setShowAccountModal(false);
       setEditingAccountId(null);
       setAccountForm({ name: '', category: '', sub_category: '', is_real: true });
-      await fetchAccounts();
+      
+      // Rafraîchir la liste complète des comptes en arrière-plan
+      fetchAccounts();
     } catch (error) {
       setToastMessage('Erreur lors de la mise à jour du compte');
       console.error('Error:', error);
@@ -156,8 +216,16 @@ export default function AccountSettings() {
       if (!response.ok) {
         throw new Error('Failed to delete account');
       }
+      
+      // Mettre à jour la liste des comptes immédiatement
+      setAccounts(prevAccounts => 
+        prevAccounts.filter(account => account.accountId !== accountId)
+      );
+      
       setToastMessage('Compte supprimé avec succès!');
-      await fetchAccounts();
+      
+      // Rafraîchir la liste complète des comptes en arrière-plan
+      fetchAccounts();
     } catch (error) {
       setToastMessage('Erreur lors de la suppression du compte');
       console.error('Error:', error);
@@ -177,6 +245,23 @@ export default function AccountSettings() {
       setEditingAccountId(account.accountId);
       setShowAccountModal(true);
     }
+  };
+
+  const openCreateModal = () => {
+    // Préremplir le formulaire avec les valeurs de l'onglet actif
+    const defaultCategory = getCategoriesForTab()[0] || '';
+    const defaultSubCategory = accountTypes
+      .find(type => type.category === defaultCategory && type.is_real === (activeTab === 'real'))
+      ?.sub_category || '';
+
+    setAccountForm({
+      name: '',
+      category: defaultCategory,
+      sub_category: defaultSubCategory,
+      is_real: activeTab === 'real',
+    });
+    setEditingAccountId(null);
+    setShowAccountModal(true);
   };
 
   return (
@@ -199,15 +284,11 @@ export default function AccountSettings() {
           Gérez vos préférences et paramètres de compte ici.
         </p>
 
-        <div className="mt-8">
+        <div className="mt-8 w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold text-gray-800">Comptes disponibles</h2>
             <button
-              onClick={() => {
-                setEditingAccountId(null);
-                setAccountForm({ name: '', category: '', sub_category: '', is_real: true });
-                setShowAccountModal(true);
-              }}
+              onClick={openCreateModal}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -217,17 +298,62 @@ export default function AccountSettings() {
             </button>
           </div>
 
+          {/* Main Tabs */}
+          <div className="border-b border-gray-200 mb-4">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('real')}
+                className={`${
+                  activeTab === 'real'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Comptes réels
+              </button>
+              <button
+                onClick={() => setActiveTab('virtual')}
+                className={`${
+                  activeTab === 'virtual'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Comptes virtuels
+              </button>
+            </nav>
+          </div>
+
+          {/* Category Tabs */}
+          <div className="border-b border-gray-200 mb-4">
+            <nav className="-mb-px flex space-x-4 overflow-x-auto">
+              {getCategoriesForTab().map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  className={`${
+                    activeCategory === category
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm`}
+                >
+                  {category}
+                </button>
+              ))}
+            </nav>
+          </div>
+
           {loading ? (
             <p className="text-gray-600">Chargement...</p>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
-          ) : accounts.length === 0 ? (
-            <p className="text-gray-600">Aucun compte disponible</p>
+          ) : getFilteredAccounts().length === 0 ? (
+            <p className="text-gray-600">Aucun compte disponible dans cette catégorie</p>
           ) : (
             <ul className="space-y-3">
-              {accounts.map((account, index) => (
+              {getFilteredAccounts().map((account, index) => (
                 <li
                   key={account.accountId || `account-${index}`}
                   className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
@@ -235,7 +361,9 @@ export default function AccountSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-lg font-medium text-gray-800">{account.name || 'Compte sans nom'}</span>
-                      <span className="text-sm text-gray-500 block">Type: {account.account_type}</span>
+                      <span className="text-sm text-gray-500 block">
+                        {accountTypes.find(type => type.id === account.account_type)?.sub_category || 'Sous-catégorie inconnue'}
+                      </span>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -301,7 +429,7 @@ export default function AccountSettings() {
                   required
                 />
                 <datalist id="categories">
-                  {uniqueCategories.map((category, index) => (
+                  {getCategoriesForTab().map((category: string, index: number) => (
                     <option key={index} value={category} />
                   ))}
                 </datalist>
@@ -317,9 +445,11 @@ export default function AccountSettings() {
                   required
                 />
                 <datalist id="sub-categories">
-                  {getSubCategories(accountForm.category).map((subCategory, index) => (
-                    <option key={index} value={subCategory} />
-                  ))}
+                  {accountTypes
+                    .filter(type => type.category === accountForm.category)
+                    .map((type, index) => (
+                      <option key={index} value={type.sub_category} />
+                    ))}
                 </datalist>
               </div>
               <div>
