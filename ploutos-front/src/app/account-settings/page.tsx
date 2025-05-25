@@ -9,36 +9,111 @@ interface Account {
   created_at: string;
   updated_at: string;
   account_type: string;
+}
 
-  // Add other fields as needed
+interface AccountType {
+  id: string;
+  category: string;
+  sub_category: string;
+  is_real: boolean;
+}
+
+interface AccountFormData {
+  name: string;
+  category: string;
+  sub_category: string;
+  is_real: boolean;
 }
 
 export default function AccountSettings() {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountTypes, setAccountTypes] = useState<AccountType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [accountForm, setAccountForm] = useState<AccountFormData>({
+    name: '',
+    category: '',
+    sub_category: '',
+    is_real: true,
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/accounts');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Data received:', data);
+      setAccounts(data);
+      setError(null);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des comptes:', error);
+      setError('Impossible de charger les comptes. Veuillez réessayer plus tard.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAccountTypes = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/account-types');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setAccountTypes(data);
+    } catch (error) {
+      console.error('Erreur lors de la récupération des types de comptes:', error);
+    }
+  };
 
   useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/accounts');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        console.log('Data received:', data);
-        setAccounts(data);
-        setError(null);
-      } catch (error) {
-        console.error('Erreur lors de la récupération des comptes:', error);
-        setError('Impossible de charger les comptes. Veuillez réessayer plus tard.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchAccounts();
+    fetchAccountTypes();
   }, []);
+
+  // Get unique categories
+  const uniqueCategories = Array.from(new Set(accountTypes.map(type => type.category)));
+
+  // Get sub-categories for selected category
+  const getSubCategories = (category: string) => {
+    return Array.from(new Set(
+      accountTypes
+        .filter(type => type.category === category)
+        .map(type => type.sub_category)
+    ));
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsCreating(true);
+      const response = await fetch('http://localhost:8000/create-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(accountForm),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create account');
+      }
+      const createdAccount = await response.json();
+      setToastMessage(`Compte "${createdAccount.name}" créé avec succès!`);
+      setShowAccountModal(false);
+      setAccountForm({ name: '', category: '', sub_category: '', is_real: true });
+      await fetchAccounts();
+    } catch (error) {
+      setToastMessage('Erreur lors de la création du compte');
+      console.error('Error:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-50 to-white pt-8">
@@ -61,7 +136,19 @@ export default function AccountSettings() {
         </p>
 
         <div className="mt-8">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comptes disponibles</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold text-gray-800">Comptes disponibles</h2>
+            <button
+              onClick={() => setShowAccountModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Créer un compte
+            </button>
+          </div>
+
           {loading ? (
             <p className="text-gray-600">Chargement...</p>
           ) : error ? (
@@ -87,6 +174,103 @@ export default function AccountSettings() {
           )}
         </div>
       </div>
+
+      {/* Account Creation Modal */}
+      {showAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+            <h2 className="text-2xl font-bold mb-4">Créer un nouveau compte</h2>
+            <form onSubmit={handleCreateAccount} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Nom du compte</label>
+                <input
+                  type="text"
+                  value={accountForm.name}
+                  onChange={(e) => setAccountForm({...accountForm, name: e.target.value})}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Catégorie</label>
+                <input
+                  type="text"
+                  value={accountForm.category}
+                  onChange={(e) => {
+                    const newCategory = e.target.value;
+                    setAccountForm({
+                      ...accountForm,
+                      category: newCategory,
+                      sub_category: '' // Reset sub-category when category changes
+                    });
+                  }}
+                  list="categories"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+                <datalist id="categories">
+                  {uniqueCategories.map((category, index) => (
+                    <option key={index} value={category} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Sous-catégorie</label>
+                <input
+                  type="text"
+                  value={accountForm.sub_category}
+                  onChange={(e) => setAccountForm({...accountForm, sub_category: e.target.value})}
+                  list="sub-categories"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                />
+                <datalist id="sub-categories">
+                  {getSubCategories(accountForm.category).map((subCategory, index) => (
+                    <option key={index} value={subCategory} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Compte réel ?</label>
+                <select
+                  value={accountForm.is_real ? 'true' : 'false'}
+                  onChange={(e) => setAccountForm({...accountForm, is_real: e.target.value === 'true'})}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  required
+                >
+                  <option value="true">Oui</option>
+                  <option value="false">Non</option>
+                </select>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAccountModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className={`px-4 py-2 bg-blue-600 text-white rounded-lg ${
+                    isCreating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+                  }`}
+                >
+                  {isCreating ? 'Création...' : 'Créer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Message */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-gray-200 animate-fade-in">
+          <p className="text-gray-800">{toastMessage}</p>
+        </div>
+      )}
     </main>
   );
 }
