@@ -1,10 +1,11 @@
 import uvicorn
-from api.routers import bank, test
-from config.settings import settings
+from api.routers import accounts, test
+from config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+settings = get_settings()
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="API pour la gestion des transactions financières",
@@ -21,8 +22,8 @@ app.add_middleware(
 )
 
 # Inclusion des routeurs
-app.include_router(test.router, prefix=settings.API_V1_STR, tags=["test"])
-app.include_router(bank.router, prefix=f"{settings.API_V1_STR}/bank", tags=["bank"])
+app.include_router(test.router, tags=["test"])
+app.include_router(accounts.router, tags=["accounts"])
 
 
 @app.get("/")

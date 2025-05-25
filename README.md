@@ -31,3 +31,11 @@ The issue with gocardless, it's that i don't have a solution fror Natixis Inter�
 3. Copy the id at the end of the url as the new account id
 Todo: If you want to automatize the process, just go here : [Examples Nordigen](https://github.com/nordigen/nordigen-python/blob/master/example/app.py)
 
+
+##### API Documentation
+
+Pour accéder à la documentation Swagger de l'API, visitez :
+```
+http://localhost:8000/docs
+```
+
