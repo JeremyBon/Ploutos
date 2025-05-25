@@ -2,39 +2,44 @@
 
 ```mermaid
 erDiagram
-    Type_compte {
-        int id PK
-        string type
-        string categorie
-        string sous_type
+    Account_types {
+        uuid id PK
+        timestamp created_at
+        timestamp updated_at
+        bool is_real
+        text category
+        text sub_category
     }
 
-    Compte {
-        int id PK
-        string name
-        int id_type FK
+    Accounts {
+        uuid accountId PK
+        timestamp created_at
+        timestamp updated_at
+        text name
+        uuid account_type FK
     }
 
-    Paiement {
-        int id PK
+    Credit {
+        uuid transactionId PK
+        timestamp created_at
+        timestamp updated_at
+        text description
         date date
-        string description
-        int id_account_touche FK
-        float montant
-        json redistribution
-    }
-
-    Transactions {
-        int id PK
-        int id_paiement FK
-        date date
-        int account_debit_id FK
-        int account_credit_id FK
         float amount
+        uuid accountId FK
+        
+    }
+    Debit {
+        uuid id PK
+        timestamp created_at
+        timestamp updated_at
+        uuid creditId FK
+        float amount
+        uuid accountId FK
     }
 
     %% Relations entre les tables
-    Type_compte ||--o| Compte : "1-N"
-    Compte ||--o| Paiement : "1-N"
-    Compte ||--o| Transactions : "1-N"
-    Paiement ||--o| Transactions : "1-N"
+    Account_types ||--o{ Accounts : "1-N"
+    Accounts ||--o{ Credit : "1-N"
+    Accounts ||--o{ Debit : "1-N"
+    Credit ||--o{ Debit : "1-N"
