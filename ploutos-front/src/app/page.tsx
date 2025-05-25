@@ -36,6 +36,10 @@ export default function Home() {
     router.push('/account-settings');
   };
 
+  const handleTransactionsClick = () => {
+    router.push('/transactions');
+  };
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-50 to-white">
       <div className="text-center space-y-6">
@@ -61,6 +65,12 @@ export default function Home() {
               className="px-6 py-3 bg-green-600 text-white rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg hover:bg-green-700"
             >
               Paramètres du compte
+            </button>
+            <button
+              onClick={handleTransactionsClick}
+              className="px-6 py-3 bg-purple-600 text-white rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg hover:bg-purple-700"
+            >
+              Transactions
             </button>
           </div>
           {showToast && (

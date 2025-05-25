@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from api.deps import SessionDep
+from db.models import *
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -28,32 +29,6 @@ class AccountTypeResponse(AccountTypeBase):
     category: str
     sub_category: str
     is_real: bool
-
-
-class AccountBase(BaseModel):
-    name: str = Field(
-        ..., min_length=1, max_length=100, description="Name of the account"
-    )
-
-
-class AccountCreate(AccountBase):
-    category: str = Field(..., min_length=1, description="Category of the account")
-    sub_category: str = Field(
-        ..., min_length=1, description="Sub-category of the account"
-    )
-    is_real: bool = Field(..., description="Whether this is a real account")
-
-
-class AccountUpdate(AccountCreate):
-    pass
-
-
-class AccountResponse(AccountBase):
-    accountId: str
-    name: str
-    account_type: str
-    created_at: datetime
-    updated_at: datetime
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
