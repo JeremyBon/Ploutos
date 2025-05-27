@@ -19,27 +19,30 @@ erDiagram
         uuid account_type FK
     }
 
-    Credit {
+    Transactions {
         uuid transactionId PK
         timestamp created_at
         timestamp updated_at
         text description
-        date date
+        timestamp date
+        text type
         float amount
         uuid accountId FK
         
     }
-    Debit {
-        uuid id PK
+    TransactionsSlaves {
+        uuid slaveId PK
         timestamp created_at
         timestamp updated_at
-        uuid creditId FK
+        text type
         float amount
+        timestamp date
         uuid accountId FK
+        uuid masterId FK
     }
 
     %% Relations entre les tables
     Account_types ||--o{ Accounts : "1-N"
-    Accounts ||--o{ Credit : "1-N"
-    Accounts ||--o{ Debit : "1-N"
-    Credit ||--o{ Debit : "1-N"
+    Accounts ||--o{ Transactions : "1-N"
+    Accounts ||--o{ TransactionsSlaves : "1-N"
+    Transactions ||--o{ TransactionsSlaves : "1-N"

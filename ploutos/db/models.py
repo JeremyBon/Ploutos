@@ -47,28 +47,33 @@ class AccountResponse(AccountBase):
     updated_at: datetime
 
 
-class CreditBase(BaseModel):
+class TransactionBase(BaseModel):
     description: str
     date: datetime
     amount: float
+    type: str
     accountId: UUID
 
 
-class CreditCreate(CreditBase):
+class TransactionCreate(TransactionBase):
     pass
 
 
-class Credit(CreditBase):
-    creditId: UUID
+class Transaction(TransactionBase):
+    transactionId: UUID
     created_at: datetime
     updated_at: datetime
 
 
-class Debit(BaseModel):
-    debitId: UUID
-    created_at: datetime
-    updated_at: datetime
-    creditId: UUID
+class TransactionSlaveBase(BaseModel):
+    type: str
     amount: float
-    accountId: UUID
     date: datetime
+    accountId: UUID
+    masterId: UUID
+
+
+class TransactionSlave(TransactionSlaveBase):
+    slaveId: UUID
+    created_at: datetime
+    updated_at: datetime

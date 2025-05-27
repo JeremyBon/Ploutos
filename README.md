@@ -9,6 +9,25 @@ This is ploutos
     npx create-next-app@latest
     ```
 
+## Run the project
+
+In one terminal, run the following command to start the Next.js server:
+```bash
+cd ploutos-front && npm run dev 
+```
+
+In another terminal, run the following command to start the Nest.js server:
+```bash
+cd ploutos && poetry run uvicorn api.main:app --reload --log-level debug
+```
+Go on the following url to access the website:
+```
+http://localhost:3000
+```
+and on the following url to access the API:
+```
+http://localhost:8000/docs
+```
 
 ##### Commit
 Commit message: Please use [Conventionnal Commits](https://www.conventionalcommits.org/en/v1.0.0/)

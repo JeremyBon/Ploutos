@@ -1,5 +1,5 @@
 import uvicorn
-from api.routers import accounts, test
+from api.routers import accounts, test, transactions
 from config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +24,7 @@ app.add_middleware(
 # Inclusion des routeurs
 app.include_router(test.router, tags=["test"])
 app.include_router(accounts.router, tags=["accounts"])
+app.include_router(transactions.router, tags=["transactions"])
 
 
 @app.get("/")
