@@ -34,14 +34,12 @@ class AccountTypeResponse(AccountTypeBase):
 @router.get("/accounts", response_model=list[AccountResponse])
 async def get_accounts(db: SessionDep):
     response = db.table("Accounts").select("*").execute()
-    logger.debug(f"Response: {response}")
     return response.data
 
 
 @router.get("/account-types", response_model=list[AccountTypeResponse])
 async def get_account_types(db: SessionDep):
     response = db.table("Account-types").select("*").execute()
-    logger.debug(f"Response: {response}")
     return response.data
 
 
