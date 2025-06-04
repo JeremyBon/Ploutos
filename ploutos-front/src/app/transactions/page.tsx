@@ -27,10 +27,21 @@ export default function Transactions() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>('2022-04');
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_URL}/transactions`, {
+      const params = new URLSearchParams();
+      if (selectedMonth) {
+        const [year, month] = selectedMonth.split('-');
+        const startDate = `${year}-${month}-01`;
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month}-${lastDay}`;
+        params.append('date_from', startDate);
+        params.append('date_to', endDate);
+      }
+
+      const response = await fetch(`${API_URL}/transactions?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -84,7 +95,7 @@ export default function Transactions() {
       }
     };
     loadData();
-  }, []);
+  }, [selectedMonth]);
 
   return (
     <main className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-50 to-white pt-8">
@@ -109,6 +120,16 @@ export default function Transactions() {
         <div className="mt-8 w-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold text-gray-800">Available Transactions</h2>
+            <div>
+              <label htmlFor="month" className="block text-sm font-medium text-gray-700 mb-1">Select Month</label>
+              <input
+                type="month"
+                id="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -124,24 +145,28 @@ export default function Transactions() {
               {transactions.map((transaction) => (
                 <li
                   key={transaction.transactionId}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                  className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow mb-2"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <span className="text-lg font-medium text-gray-800">
+                    <div className="flex-1 min-w-[180px]">
+                      <span className="text-base font-medium text-gray-800">
                         {transaction.description}
                       </span>
-                      <p className="text-sm text-gray-500">
-                        {new Date(transaction.date).toLocaleDateString()}
+                      <p className="text-xs text-gray-500">
+                        {new Date(transaction.date).toLocaleDateString('fr-FR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
                       </p>
                     </div>
-                    <div className="flex-1 text-center">
-                      <p className="text-gray-800">
+                    <div className="flex-1 text-center min-w-[120px]">
+                      <p className="text-sm text-gray-800">
                         {accounts.find(acc => acc.accountId === transaction.accountId)?.name || 'Unknown account'}
                       </p>
                     </div>
-                    <div className="flex-1 text-right">
-                      <p className={`text-lg font-semibold ${
+                    <div className="flex-1 text-right min-w-[100px]">
+                      <p className={`text-base font-semibold ${
                         transaction.type === 'debit' 
                           ? 'text-red-600' 
                           : transaction.type === 'credit' 
