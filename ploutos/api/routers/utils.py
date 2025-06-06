@@ -1,19 +1,22 @@
-def extract_nested_field(data, nested_key, field_key, new_key=None):
+def extract_nested_field(
+    data: list, nested_key: str, field_keys: list, new_keys: list = None
+):
     """
-    Extrait un champ d'un objet imbriqué et le place au niveau racine
+    Extrait des champs d'un objet imbriqué et les place au niveau racine
 
     Args:
         data: Liste des données
         nested_key: Clé de l'objet imbriqué (ex: 'Accounts')
-        field_key: Clé du champ à extraire (ex: 'name')
-        new_key: Nouveau nom pour le champ (optionnel)
+        field_keys: Liste des clés des champs à extraire (ex: ['name', 'type'])
+        new_key: Liste des nouveaux noms pour les champs (optionnel)
     """
-    if new_key is None:
-        new_key = field_key
-
     for item in data:
         if nested_key in item and item[nested_key]:
-            item[new_key] = item[nested_key].get(field_key, '')
+            for i, field_key in enumerate(field_keys):
+                if new_keys:
+                    item[new_keys[i]] = item[nested_key].get(field_key, '')
+                else:
+                    item[field_key] = item[nested_key].get(field_key, '')
             del item[nested_key]
 
     return data

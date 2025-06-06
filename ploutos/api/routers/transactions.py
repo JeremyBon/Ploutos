@@ -78,19 +78,19 @@ async def get_transactions(
     transactions_resp.data = extract_nested_field(
         data=transactions_resp.data,
         nested_key="Accounts",
-        field_key="name",
-        new_key="masterAccountName",
+        field_keys=["name"],
+        new_keys=["masterAccountName"],
     )
     for transaction in transactions_resp.data:
         transaction["TransactionsSlaves"] = extract_nested_field(
             data=transaction["TransactionsSlaves"],
             nested_key="Accounts",
-            field_key="name",
-            new_key="slaveAccountName",
+            field_keys=["name"],
+            new_keys=["slaveAccountName"],
         )
     logger.debug(transactions_resp.data[0])
     logger.info(f"{len(transactions_resp.data)} transactions found")
-    return transactions_resp.data[:1]
+    return transactions_resp.data
 
 
 @router.put("/transactions/{transaction_id}", response_model=TransactionUpdate)

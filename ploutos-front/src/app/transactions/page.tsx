@@ -143,48 +143,55 @@ export default function Transactions() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-50 to-white pt-8">
-      <div className="text-center space-y-6 w-full max-w-4xl px-4 relative">
-        <Link 
-          href="/"
-          className="absolute top-0 right-0 bg-white px-4 py-2 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex items-center gap-2 text-gray-600 hover:text-blue-600"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          Back
-        </Link>
-
-        <h1 className="text-4xl font-bold text-blue-600">
-          Transactions
-        </h1>
-        <p className="text-xl text-gray-600">
-          Manage your financial transactions here.
-        </p>
-
-        <div className="mt-8 w-full">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-semibold text-gray-800">Available Transactions</h2>
-            <div>
-              <label htmlFor="month" className="block text-sm font-medium text-gray-700 mb-1">Select Month</label>
-              <input
-                type="month"
-                id="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      {/* Navigation Bar */}
+      <nav className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-blue-600">Ploutos</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link 
+                href="/"
+                className="px-4 py-2 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Retour
+              </Link>
             </div>
           </div>
+        </div>
+      </nav>
 
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-800">Transactions</h2>
+          <div className="flex items-center">
+            <label htmlFor="month" className="sr-only">Sélectionner le mois</label>
+            <input
+              type="month"
+              id="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Transactions List */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           {loading ? (
-            <p className="text-gray-600">Loading...</p>
+            <p className="text-gray-600">Chargement...</p>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
           ) : transactions.length === 0 ? (
-            <p className="text-gray-600">No transactions available</p>
+            <p className="text-gray-600">Aucune transaction disponible</p>
           ) : (
             <ul className="space-y-3">
               {transactions.map((transaction) => (
@@ -209,21 +216,18 @@ export default function Transactions() {
                     <div className="flex-1 text-center min-w-[120px]">
                       <div className="flex items-center justify-center gap-2">
                         <p className="text-sm text-gray-800">
-                          {transaction.masterAccountName || 'Unknown account'}
+                          {transaction.masterAccountName || 'Compte inconnu'}
                         </p>
                         {transaction.TransactionsSlaves && transaction.TransactionsSlaves.length > 0 && (
                           <div className="flex flex-wrap gap-1">
-                            {transaction.TransactionsSlaves.map((slave) => {
-                              console.log('Slave:', slave); // Debug log
-                              return (
-                                <div 
-                                  key={slave.slaveId} 
-                                  className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap"
-                                >
-                                  {slave.slaveAccountName || '⚠️ Account not retrieved'}
-                                </div>
-                              );
-                            })}
+                            {transaction.TransactionsSlaves.map((slave) => (
+                              <div 
+                                key={slave.slaveId} 
+                                className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap"
+                              >
+                                {slave.slaveAccountName || '⚠️ Compte non récupéré'}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -245,7 +249,7 @@ export default function Transactions() {
             </ul>
           )}
         </div>
-      </div>
+      </main>
 
       {/* Modal */}
       {isModalOpen && selectedTransaction && (
@@ -354,6 +358,6 @@ export default function Transactions() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 } 

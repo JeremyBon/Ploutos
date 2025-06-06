@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from api.deps import SessionDep
+from api.routers.utils import extract_nested_field
 from db.models import *
 from fastapi import APIRouter, HTTPException
 from loguru import logger
@@ -28,6 +29,15 @@ class AccountTypeResponse(AccountTypeBase):
     updated_at: datetime
     category: str
     sub_category: str
+    is_real: bool
+
+
+class AccountAmount(BaseModel):
+    account_id: str
+    name: str
+    category: str
+    sub_category: str
+    current_amount: float
     is_real: bool
 
 
@@ -193,3 +203,60 @@ async def delete_account(account_id: str, db: SessionDep):
 
     logger.debug(f"Deleted account: {response}")
     return {"message": "Account deleted successfully"}
+
+
+@router.get("/accounts/current-amounts", response_model=list[AccountAmount])
+async def get_current_amounts(db: SessionDep):
+    # Récupérer tous les comptes réels avec leurs types
+    accounts_response = (
+        db.table("Accounts")
+        .select(
+            """
+            accountId,
+            name,
+            account_type,
+            original_amount,
+            Account-types!account_type (
+                category,
+                sub_category,
+                is_real
+            )
+        """
+        )
+        .execute()
+    )
+    accounts_response.data = extract_nested_field(
+        accounts_response.data, "Account-types", ["category", "sub_category", "is_real"]
+    )
+    if not accounts_response.data:
+        return []
+    accounts_response.data = [
+        account for account in accounts_response.data if account["is_real"]
+    ]
+    amount_response = (
+        db.rpc(
+            "get_total_amount_by_account_ids",
+            {
+                "account_ids": [
+                    account['accountId'] for account in accounts_response.data
+                ]
+            },
+        )
+        .execute()
+        .data
+    )
+    amounts = {
+        account['accountid']: account['total_amount'] for account in amount_response
+    }
+
+    return [
+        AccountAmount(
+            account_id=account["accountId"],
+            name=account["name"],
+            category=account["category"],
+            sub_category=account["sub_category"],
+            current_amount=amounts[account["accountId"]] + account["original_amount"],
+            is_real=account["is_real"],
+        )
+        for account in accounts_response.data
+    ]
