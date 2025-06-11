@@ -132,21 +132,35 @@ export default function Home() {
                     {totalAssets.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                   </div>
                   
-                  <div className="space-y-4">
-                    {accounts.map((account) => (
-                      <div key={account.account_id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-800">{account.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {account.category === 'bank' ? 'Compte bancaire' : 
-                             account.category === 'savings' ? 'Épargne' : 'Investissement'}
-                          </p>
+                  <div className="space-y-6">
+                    {Object.entries(
+                      accounts.reduce((acc, account) => {
+                        if (!acc[account.category]) {
+                          acc[account.category] = [];
+                        }
+                        acc[account.category].push(account);
+                        return acc;
+                      }, {} as Record<string, Account[]>)
+                    ).map(([category, categoryAccounts]) => (
+                      <div key={category}>
+                        <h4 className="text-sm font-semibold text-gray-600 mb-2">{category}</h4>
+                        <div className="space-y-2">
+                          {categoryAccounts.map((account) => (
+                            <div key={account.account_id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="font-medium text-gray-800">{account.name}</p>
+                                <p className="text-sm text-gray-500">
+                                  {account.sub_category}
+                                </p>
+                              </div>
+                              <p className={`font-semibold ${
+                                account.current_amount >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {account.current_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                        <p className={`font-semibold ${
-                          account.current_amount >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {account.current_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                        </p>
                       </div>
                     ))}
                   </div>

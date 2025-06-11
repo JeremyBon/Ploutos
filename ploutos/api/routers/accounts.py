@@ -55,42 +55,28 @@ async def get_account_types(db: SessionDep):
 
 @router.post("/create-account", response_model=AccountResponse)
 async def create_account(account: AccountCreate, db: SessionDep):
-    # Chercher Account-type existant
-    account_type_resp = (
-        db.table("Account-types")
-        .select("*")
-        .eq("category", account.category)
-        .eq("sub_category", account.sub_category)
-        .eq("is_real", account.is_real)
-        .execute()
+    # Check if account with same name already exists
+    existing_account = (
+        db.table("Accounts").select("*").eq("name", account.name).execute()
     )
-    current_time = datetime.now().isoformat()
-    if account_type_resp.data and len(account_type_resp.data) > 0:
-        account_type_id = account_type_resp.data[0]["id"]
-    else:
-        # Créer un nouveau Account-type
-        new_type_resp = (
-            db.table("Account-types")
-            .insert(
-                {
-                    "category": account.category,
-                    "sub_category": account.sub_category,
-                    "is_real": account.is_real,
-                    "created_at": current_time,
-                    "updated_at": current_time,
-                }
-            )
-            .execute()
-        )
-        account_type_id = new_type_resp.data[0]["id"]
 
-    # Créer l'Account
+    if existing_account.data and len(existing_account.data) > 0:
+        raise HTTPException(
+            status_code=400, detail=f"Account with name '{account.name}' already exists"
+        )
+
+    current_time = datetime.now().isoformat()
+
+    # Create the Account
     account_resp = (
         db.table("Accounts")
         .insert(
             {
                 "name": account.name,
-                "account_type": account_type_id,
+                "category": account.category,
+                "sub_category": account.sub_category,
+                "is_real": account.is_real,
+                "original_amount": account.original_amount,
                 "created_at": current_time,
                 "updated_at": current_time,
             }
@@ -103,50 +89,18 @@ async def create_account(account: AccountCreate, db: SessionDep):
 
 @router.put("/accounts/{account_id}", response_model=AccountResponse)
 async def update_account(account_id: str, account: AccountUpdate, db: SessionDep):
-    # Récupérer l'ancien type de compte avant la mise à jour
-    old_account = db.table("Accounts").select("*").eq("accountId", account_id).execute()
-
-    if not old_account.data:
-        raise HTTPException(status_code=404, detail="Account not found")
-
-    old_account_type_id = old_account.data[0]["account_type"]
-
-    # Chercher Account-type existant
-    account_type_resp = (
-        db.table("Account-types")
-        .select("*")
-        .eq("category", account.category)
-        .eq("sub_category", account.sub_category)
-        .eq("is_real", account.is_real)
-        .execute()
-    )
     current_time = datetime.now().isoformat()
-    if account_type_resp.data and len(account_type_resp.data) > 0:
-        account_type_id = account_type_resp.data[0]["id"]
-    else:
-        # Créer un nouveau Account-type
-        new_type_resp = (
-            db.table("Account-types")
-            .insert(
-                {
-                    "category": account.category,
-                    "sub_category": account.sub_category,
-                    "is_real": account.is_real,
-                    "created_at": current_time,
-                    "updated_at": current_time,
-                }
-            )
-            .execute()
-        )
-        account_type_id = new_type_resp.data[0]["id"]
 
-    # Mettre à jour l'Account avec updated_at
+    # Update the Account
     account_resp = (
         db.table("Accounts")
         .update(
             {
                 "name": account.name,
-                "account_type": account_type_id,
+                "category": account.category,
+                "sub_category": account.sub_category,
+                "is_real": account.is_real,
+                "original_amount": account.original_amount,
                 "updated_at": current_time,
             }
         )
@@ -157,49 +111,17 @@ async def update_account(account_id: str, account: AccountUpdate, db: SessionDep
     if not account_resp.data:
         raise HTTPException(status_code=404, detail="Account not found")
 
-    # Vérifier si l'ancien type de compte est toujours utilisé
-    if old_account_type_id != account_type_id:
-        accounts_with_old_type = (
-            db.table("Accounts")
-            .select("*")
-            .eq("account_type", old_account_type_id)
-            .execute()
-        )
-
-        # Si aucun compte n'utilise plus ce type, le supprimer
-        if not accounts_with_old_type.data:
-            (db.table("Account-types").delete().eq("id", old_account_type_id).execute())
-            logger.debug(f"Deleted unused account type: {old_account_type_id}")
-
     logger.debug(f"Updated account: {account_resp}")
     return account_resp.data[0]
 
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(account_id: str, db: SessionDep):
-    # Récupérer le compte avant de le supprimer pour avoir son type
-    account = db.table("Accounts").select("*").eq("accountId", account_id).execute()
-
-    if not account.data:
-        raise HTTPException(status_code=404, detail="Account not found")
-
-    account_type_id = account.data[0]["account_type"]
-
-    # Supprimer le compte
+    # Delete the account
     response = db.table("Accounts").delete().eq("accountId", account_id).execute()
 
     if not response.data:
         raise HTTPException(status_code=404, detail="Account not found")
-
-    # Vérifier si d'autres comptes utilisent ce type
-    remaining_accounts = (
-        db.table("Accounts").select("*").eq("account_type", account_type_id).execute()
-    )
-
-    # Si aucun autre compte n'utilise ce type, le supprimer
-    if not remaining_accounts.data:
-        db.table("Account-types").delete().eq("id", account_type_id).execute()
-        logger.debug(f"Deleted unused account type: {account_type_id}")
 
     logger.debug(f"Deleted account: {response}")
     return {"message": "Account deleted successfully"}
@@ -207,32 +129,16 @@ async def delete_account(account_id: str, db: SessionDep):
 
 @router.get("/accounts/current-amounts", response_model=list[AccountAmount])
 async def get_current_amounts(db: SessionDep):
-    # Récupérer tous les comptes réels avec leurs types
-    accounts_response = (
-        db.table("Accounts")
-        .select(
-            """
-            accountId,
-            name,
-            account_type,
-            original_amount,
-            Account-types!account_type (
-                category,
-                sub_category,
-                is_real
-            )
-        """
-        )
-        .execute()
-    )
-    accounts_response.data = extract_nested_field(
-        accounts_response.data, "Account-types", ["category", "sub_category", "is_real"]
-    )
+    # Get all real accounts
+    accounts_response = db.table("Accounts").select("*").execute()
+
     if not accounts_response.data:
         return []
+
     accounts_response.data = [
         account for account in accounts_response.data if account["is_real"]
     ]
+
     amount_response = (
         db.rpc(
             "get_total_amount_by_account_ids",
@@ -245,6 +151,7 @@ async def get_current_amounts(db: SessionDep):
         .execute()
         .data
     )
+
     amounts = {
         account['accountid']: account['total_amount'] for account in amount_response
     }
@@ -255,7 +162,8 @@ async def get_current_amounts(db: SessionDep):
             name=account["name"],
             category=account["category"],
             sub_category=account["sub_category"],
-            current_amount=amounts[account["accountId"]] + account["original_amount"],
+            current_amount=amounts.get(account["accountId"], 0)
+            + account["original_amount"],
             is_real=account["is_real"],
         )
         for account in accounts_response.data
