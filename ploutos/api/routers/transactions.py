@@ -40,6 +40,18 @@ class TransactionUpdate(BaseModel):
     date: datetime
 
 
+class TransactionSlaveUpdate(BaseModel):
+    slaveId: UUID
+    type: str
+    amount: float
+    date: datetime
+    accountId: UUID
+
+
+class TransactionSlavesUpdate(BaseModel):
+    slaves: List[TransactionSlaveUpdate]
+
+
 @router.get("/transactions", response_model=List[TransactionFront])
 async def get_transactions(
     db: SessionDep,
@@ -133,4 +145,105 @@ async def update_transaction(
 
     except Exception as e:
         logger.error(f"Error updating transaction {transaction_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
+    "/transactions/{transaction_id}/slaves", response_model=List[TransactionSlaveUpdate]
+)
+async def update_transaction_slaves(
+    transaction_id: UUID,
+    slaves_update: TransactionSlavesUpdate,
+    db: SessionDep,
+):
+    """Update the slaves of a transaction"""
+    logger.info(f"Updating slaves for transaction {transaction_id}")
+    try:
+        # Vérifier si la transaction existe
+        transaction = (
+            db.table("Transactions")
+            .select("*")
+            .eq("transactionId", str(transaction_id))
+            .execute()
+        )
+        if not transaction.data:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        elif transaction.data[0]["amount"] != sum(
+            [slave.amount for slave in slaves_update.slaves]
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Transaction amount does not match slaves amounts",
+            )
+
+        # Supprimer tous les slaves existants pour cette transaction
+        # Récupérer les slaves existants
+        existing_slaves = (
+            db.table("TransactionsSlaves")
+            .select("slaveId")
+            .eq("masterId", str(transaction_id))
+            .execute()
+        )
+
+        existing_slave_ids = {slave["slaveId"] for slave in existing_slaves.data}
+        new_slave_ids = {str(slave.slaveId) for slave in slaves_update.slaves}
+
+        # Supprimer les slaves qui n'existent plus
+        slaves_to_delete = existing_slave_ids - new_slave_ids
+        if slaves_to_delete:
+            (
+                db.table("TransactionsSlaves")
+                .delete()
+                .in_("slaveId", list(slaves_to_delete))
+                .execute()
+            )
+
+        # Insérer ou mettre à jour les nouveaux slaves
+        updated_slaves = []
+        for slave in slaves_update.slaves:
+            slave_data = {
+                "slaveId": str(slave.slaveId),
+                "type": slave.type,
+                "amount": slave.amount,
+                "date": slave.date.isoformat(),
+                "accountId": str(slave.accountId),
+                "masterId": str(transaction_id),
+                "updated_at": datetime.now().isoformat(),
+            }
+
+            if str(slave.slaveId) in existing_slave_ids:
+                # Mettre à jour l'existant
+                new_slave = (
+                    db.table("TransactionsSlaves")
+                    .update(slave_data)
+                    .eq("slaveId", str(slave.slaveId))
+                    .execute()
+                )
+            else:
+                # Insérer le nouveau
+                slave_data["created_at"] = datetime.now().isoformat()
+                new_slave = db.table("TransactionsSlaves").insert(slave_data).execute()
+
+            if new_slave.data:
+                updated_slaves.append(slave)
+            else:
+                logger.error(f"Failed to insert slave {slave.slaveId}")
+
+        # Mettre à jour le timestamp de la transaction principale
+        (
+            db.table("Transactions")
+            .update({"updated_at": datetime.now().isoformat()})
+            .eq("transactionId", str(transaction_id))
+            .execute()
+        )
+
+        logger.info(
+            f"Updated {len(updated_slaves)} slaves for transaction {transaction_id}"
+        )
+        return updated_slaves
+
+    except Exception as e:
+        logger.error(
+            f"Error updating transaction slaves for {transaction_id}: {str(e)}"
+        )
         raise HTTPException(status_code=500, detail=str(e))

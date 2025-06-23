@@ -62,8 +62,8 @@ class TransactionCreate(TransactionBase):
     pass
 
 
-class TransactionResponse(TransactionBase):
-    transactionId: str
+class Transaction(TransactionBase):
+    transactionId: UUID
     created_at: datetime
     updated_at: datetime
 
@@ -80,7 +80,7 @@ class TransactionSlaveCreate(TransactionSlaveBase):
     pass
 
 
-class TransactionSlaveResponse(TransactionSlaveBase):
-    slaveId: str
+class TransactionSlave(TransactionSlaveBase):
+    slaveId: UUID
     created_at: datetime
     updated_at: datetime

@@ -1,0 +1,114 @@
+Identifiant,Date,Montant,Type,Description,Compte départ,Compte arrivée,departID,arriveeID
+23TRFEVR01,2023-02-03,50.0,Transfert interne,Retrait,Compte Courant,Espèces,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRFÉVR02,2023-02-06,20.0,Transfert interne,Rechargement,Compte Courant,Izly,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,92c3f5ac-4c45-4ee9-a903-4cdc5a2c8e15
+23TRFÉVR03,2023-02-06,300.0,Transfert interne,Transfert,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRFÉVR04,2023-02-14,100.0,Transfert interne,rechargement compte courant,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRFÉVR05,2023-02-16,29.44,Remboursement,remboursement tricount,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRFÉVR06,2023-02-24,100.0,Transfert interne,Rechargement,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRFÉVR07,2023-02-28,100.0,Transfert interne,Rechargement,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRFÉVR08,2023-02-28,30.46,Remboursement,remboursement tricount Shaih,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMARS01,2023-03-01,6.4,Remboursement,Remboursement tricount V307,Lydia,Tricount,e775ea39-f089-4432-83c0-f2477aba9248,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMARS02,2023-03-01,40.87,Remboursement,Remboursement tricount prepa,Lydia,Tricount,e775ea39-f089-4432-83c0-f2477aba9248,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMARS03,2023-03-01,511.79,Remboursement,loyer nov-janv kreyo,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMARS04,2023-03-01,400.0,Transfert interne,go livret,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRMARS05,2023-03-01,22.81,Remboursement,une partie dette,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMARS06,2023-03-01,23.97,Remboursement,remboursement be via lydia,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMARS07,2023-03-01,46.93,Remboursement,Remboursement tricount prepa,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMARS08,2023-03-07,7.0,Transfert interne,tranfert paris,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMARS9,2023-03-08,6.0,Remboursement,remboursement mathilde,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMARS10,2023-03-13,10.0,Transfert interne,rechargement,Compte Courant,Izly,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,92c3f5ac-4c45-4ee9-a903-4cdc5a2c8e15
+23TRMARS11,2023-03-17,150.0,Transfert interne,rechargement loyer,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRMARS12,2023-03-20,100.0,Transfert interne,rechargement,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRMARS13,2023-03-20,363.71,Remboursement,remboursement loyer kreyo,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMARS14,2023-03-20,150.0,Transfert interne,rechargement fin de mois,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRMARS15,2023-03-26,20.0,Remboursement,espece MH,Remboursement,Espèces,88c7178f-668b-46ed-b33c-71ce5a67fba6,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRMARS16,2023-03-27,7.0,Remboursement,argent stahgh,Remboursement,Lydia,88c7178f-668b-46ed-b33c-71ce5a67fba6,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMARS17,2023-03-28,20.0,Remboursement,remboursement MH,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMARS18,2023-03-28,14.5,Remboursement,pizza remboursement lydia MH,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRAVRI01,2023-04-22,70.0,Transfert interne,impssibilité paiement uniqlo,Lydia Vélo,Lydia,2b090bf3-535f-4fa1-b903-763df139cce2,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAVRI02,2023-04-22,70.0,Transfert interne,impssibilité paiement uniqlo,Compte Courant,Lydia Vélo,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,2b090bf3-535f-4fa1-b903-763df139cce2
+23TRAVRI03,2023-04-22,10.0,Remboursement,baptiste retire pour moi,Compte Courant,Espèces,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRMAI01,2023-05-02,299.1,Remboursement,rembourseement baptiste ,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMAI02,2023-05-03,58.52,Remboursement,remboursement lydia le mans,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMAI03,2023-05-03,8.5,Remboursement,kebab choty,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMAI04,2023-05-03,397.78,Remboursement,remboursement paul,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI05,2023-05-05,1407.82,Remboursement,remboursement baptiste,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI06,2023-05-07,5.55,Remboursement,transfert izly,Izly,Compte Courant,92c3f5ac-4c45-4ee9-a903-4cdc5a2c8e15,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRMAI07,2023-05-09,101.91,Remboursement,wev3,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI08,2023-05-09,12.58,Remboursement,remboursement be,Lydia,Remboursement,e775ea39-f089-4432-83c0-f2477aba9248,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI9,2023-05-13,48.0,Remboursement,retirer liquide guigs,Tricount,Espèces,645386c7-3875-4c3d-bcb0-e565751410ed,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRMAI10,2023-05-20,12.44,Remboursement,reste villa,Remboursement,Tricount,88c7178f-668b-46ed-b33c-71ce5a67fba6,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMAI11,2023-05-22,18.98,Remboursement,wifi lyon,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI12,2023-05-27,550.0,Transfert interne,transfert compte lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMAI13,2023-05-27,56.0,Remboursement,remboursement choty,Compte Courant,Remboursement,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI14,2023-05-27,0.02,Remboursement,reste baptiste,Tricount,Remboursement,645386c7-3875-4c3d-bcb0-e565751410ed,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRMAI15,2023-05-27,200.75,Remboursement,remboursement tricount,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRMAI16,2023-05-27,19.0,Remboursement,remboursement wifi,Remboursement,Lydia,88c7178f-668b-46ed-b33c-71ce5a67fba6,e775ea39-f089-4432-83c0-f2477aba9248
+23TRMAI17,2023-05-28,400.0,Transfert interne,Côté mai,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRJUIN01,2023-06-01,9.38,Remboursement,remboursement choty,Tricount,Compte Courant,645386c7-3875-4c3d-bcb0-e565751410ed,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRJUIN02,2023-06-22,18.98,Remboursement,wifi lyon,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIN03,2023-06-25,20.0,Transfert interne,retirer liquide coiffeur,Lydia,Espèces,e775ea39-f089-4432-83c0-f2477aba9248,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRJUIN04,2023-06-25,0.02,Transfert interne,correction surplus shaih,Lydia,Remboursement,e775ea39-f089-4432-83c0-f2477aba9248,88c7178f-668b-46ed-b33c-71ce5a67fba6
+23TRJUIN05,2023-06-30,143.84,Remboursement,remboursement,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRJUIL01,2023-07-04,104.73,Transfert interne,pour lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIL02,2023-07-05,510.43,Transfert interne,pour vélo,Lydia Vélo,Compte Courant,2b090bf3-535f-4fa1-b903-763df139cce2,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRJUIL03,2023-07-18,16.41,Remboursement,remboursement anaïs,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIL04,2023-07-23,24.0,Remboursement,marjo tdf,Remboursement,Lydia,88c7178f-668b-46ed-b33c-71ce5a67fba6,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIL05,2023-07-24,210.0,Transfert interne,rechargement,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRJUIL06,2023-07-24,18.98,Remboursement,wifi lyon,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIL07,2023-07-28,1.94,Remboursement,remboursement soirée vinz,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRJUIL08,2023-07-30,8.32,Remboursement,remboursement soirée jerem,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT01,2023-08-04,25.98,Remboursement,remboursement vinz + romain,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT02,2023-08-07,1500.0,Transfert interne,transfert interne depuis fond ODDO,Oddo,Compte Courant,4a947e1c-601e-414f-bde8-2c0b54c190b9,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRAOÛT03,2023-08-15,60.0,Transfert interne,choty donne 60,Tricount,Espèces,645386c7-3875-4c3d-bcb0-e565751410ed,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRAOÛT04,2023-08-18,100.0,Transfert interne,ressource lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT05,2023-08-24,19.0,Transfert interne,achat midi nico axelle,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT06,2023-08-24,6.0,Remboursement,remboursement tricount par axelle,Tricount,Lydia,645386c7-3875-4c3d-bcb0-e565751410ed,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT07,2023-08-24,58.22,Transfert interne,rechargement lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRAOÛT08,2023-08-24,55.45,Remboursement,rembourseement tricount vulpian,Lydia,Tricount,e775ea39-f089-4432-83c0-f2477aba9248,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRAOÛT9,2023-08-24,30.19,Remboursement,remboursement menuires,Lydia,Tricount,e775ea39-f089-4432-83c0-f2477aba9248,645386c7-3875-4c3d-bcb0-e565751410ed
+23TRAOÛT10,2023-08-28,1400.0,Transfert interne,livret au max*,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRAOÛT11,2023-08-29,500.0,Transfert interne,transfert lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRSEPT01,2023-09-17,300.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRSEPT02,2023-09-19,646.75,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRSEPT03,2023-09-23,200.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TROCTO01,2023-10-02,500.0,Transfert interne,transfert interne,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TROCTO02,2023-10-03,1.2,Transfert interne,Anne Ma machine café,Espèces,Lydia,82f3f7c9-356a-4ac4-95d3-47a8fc393958,e775ea39-f089-4432-83c0-f2477aba9248
+23TROCTO03,2023-10-09,11.0,Remboursement,remboursement tartiflette,Remboursement,Lydia,88c7178f-668b-46ed-b33c-71ce5a67fba6,e775ea39-f089-4432-83c0-f2477aba9248
+23TROCTO04,2023-10-15,5.0,Transfert interne,frites marjo fanzone,Remboursement,Lydia,88c7178f-668b-46ed-b33c-71ce5a67fba6,e775ea39-f089-4432-83c0-f2477aba9248
+23TROCTO05,2023-10-19,78.7,Remboursement,tricount guilhem,Compte Courant,Tricount,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,645386c7-3875-4c3d-bcb0-e565751410ed
+23TROCTO06,2023-10-20,20.0,Transfert interne,guigs coiffeur,Espèces,Lydia,82f3f7c9-356a-4ac4-95d3-47a8fc393958,e775ea39-f089-4432-83c0-f2477aba9248
+23TROCTO07,2023-10-31,10.0,Transfert interne,lancement livret A,Compte Courant,Livret A,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,35aac82a-10e9-44f0-8e6e-9191a9e94725
+23TRNOVE01,2023-11-03,12900.0,Transfert interne,don mami,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRNOVE02,2023-11-03,12900.0,Transfert interne,lancement livret,Livret Jeune,Livret A,ece4342a-0460-4895-b726-9cafb98bbfba,35aac82a-10e9-44f0-8e6e-9191a9e94725
+23TRNOVE03,2023-11-15,110.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRNOVE04,2023-11-19,50.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRNOVE05,2023-11-19,1000.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRNOVE06,2023-11-20,60.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRNOVE07,2023-11-21,30.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRNOVE08,2023-11-29,40.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRNOVE9,2023-11-29,60.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRDÉCE01,2023-12-09,500.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+23TRDÉCE02,2023-12-09,3000.0,Transfert interne,,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRDÉCE03,2023-12-12,1000.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRDÉCE04,2023-12-27,4000.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+23TRDÉCE05,2023-12-28,1146.75,Transfert interne,loyer,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRDÉCE06,2023-12-28,5000.0,,investissement,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+23TRDÉCE07,2023-12-28,5000.0,Investissement,natixis carrefour,Livret A,Carrefour Natixis,35aac82a-10e9-44f0-8e6e-9191a9e94725,e4d743a3-60bc-43bf-8037-036fc7f86b34
+23TRDÉCE08,2023-12-31,21.2,,equilibrage perte compte,Lydia,Espèces,e775ea39-f089-4432-83c0-f2477aba9248,82f3f7c9-356a-4ac4-95d3-47a8fc393958
+23TRDÉCE9,2023-12-31,2529.0,Transfert interne,rééquilibrage livret jeune,Livret Jeune,Livret A,ece4342a-0460-4895-b726-9cafb98bbfba,35aac82a-10e9-44f0-8e6e-9191a9e94725
+24TRJANV01,2024-01-03,500.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+24TRJANV02,2024-01-05,129.0,Transfert interne,apl,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+24TRJANV03,2024-01-27,100.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+24TRFÉVR01,2024-02-02,1000.0,Transfert interne,,Compte Courant,Livret Jeune,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,ece4342a-0460-4895-b726-9cafb98bbfba
+24TRFÉVR02,2024-02-02,500.0,Transfert interne,lydia,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+24TRFÉVR03,2024-02-02,20.0,Transfert interne,,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+24TRFÉVR04,2024-02-16,100.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+24TRFÉVR05,2024-02-21,300.0,Transfert interne,,Livret Jeune,Compte Courant,ece4342a-0460-4895-b726-9cafb98bbfba,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+24TRMARS01,2024-03-28,600.0,Transfert interne,,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248
+24TRAVRI01,2024-04-05,115.52,Remboursement,tricount guilhem,Lydia,Tricount,e775ea39-f089-4432-83c0-f2477aba9248,645386c7-3875-4c3d-bcb0-e565751410ed
+24TRJUIN01,2024-06-06,55.98,Transfert interne,création revolut,Lydia,Revolut,e775ea39-f089-4432-83c0-f2477aba9248,c4259806-b87d-4258-a33b-d1644c720461
+24TRJUIN02,2024-06-16,1691.9,Transfert interne,transfert caf + loyer,Livret A,Compte Courant,35aac82a-10e9-44f0-8e6e-9191a9e94725,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+24TRJUIN03,2024-06-16,5700.0,Transfert interne,avril+mai+juin16,Livret A,Compte Courant,35aac82a-10e9-44f0-8e6e-9191a9e94725,5e139075-c4b5-4f6f-afdb-e8a5efa9d377
+24TRJUIN04,2024-06-16,9704.0,Transfert interne,mars+avril+mai+juin16,Compte Courant,Livret A,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,35aac82a-10e9-44f0-8e6e-9191a9e94725
+24TRMARS02,2024-03-31,200.0,Transfert interne,recharche lydia 2*100,Compte Courant,Lydia,5e139075-c4b5-4f6f-afdb-e8a5efa9d377,e775ea39-f089-4432-83c0-f2477aba9248

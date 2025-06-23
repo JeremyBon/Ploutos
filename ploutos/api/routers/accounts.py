@@ -11,27 +11,6 @@ from pydantic import BaseModel, Field
 router = APIRouter()
 
 
-class AccountTypeBase(BaseModel):
-    category: str = Field(..., min_length=1, description="Category of the account type")
-    sub_category: str = Field(
-        ..., min_length=1, description="Sub-category of the account type"
-    )
-    is_real: bool = Field(..., description="Whether this is a real account type")
-
-
-class AccountTypeCreate(AccountTypeBase):
-    pass
-
-
-class AccountTypeResponse(AccountTypeBase):
-    id: str
-    created_at: datetime
-    updated_at: datetime
-    category: str
-    sub_category: str
-    is_real: bool
-
-
 class AccountAmount(BaseModel):
     account_id: str
     name: str
@@ -47,17 +26,18 @@ async def get_accounts(db: SessionDep):
     return response.data
 
 
-@router.get("/account-types", response_model=list[AccountTypeResponse])
-async def get_account_types(db: SessionDep):
-    response = db.table("Account-types").select("*").execute()
-    return response.data
-
-
 @router.post("/create-account", response_model=AccountResponse)
 async def create_account(account: AccountCreate, db: SessionDep):
     # Check if account with same name already exists
     existing_account = (
-        db.table("Accounts").select("*").eq("name", account.name).execute()
+        db.table("Accounts")
+        .select("*")
+        .eq("name", account.name)
+        .eq("category", account.category)
+        .eq("sub_category", account.sub_category)
+        .eq("is_real", account.is_real)
+        .eq("original_amount", account.original_amount)
+        .execute()
     )
 
     if existing_account.data and len(existing_account.data) > 0:
