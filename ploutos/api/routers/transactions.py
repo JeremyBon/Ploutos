@@ -20,6 +20,7 @@ class TransactionSlaveFront(BaseModel):
     accountId: UUID
     masterId: UUID
     slaveAccountName: str
+    slaveAccountIsReal: bool
 
 
 class TransactionFront(BaseModel):
@@ -32,6 +33,7 @@ class TransactionFront(BaseModel):
     amount: float
     accountId: UUID
     masterAccountName: str
+    masterAccountIsReal: bool
     TransactionsSlaves: List[TransactionSlaveFront] = []
 
 
@@ -62,8 +64,9 @@ async def get_transactions(
     query = db.table("Transactions").select(
         """
         *,
-        Accounts (
-            name
+        Accounts!left (
+            name,
+            is_real
         ),
         TransactionsSlaves (
             masterId,
@@ -73,7 +76,8 @@ async def get_transactions(
             date,
             accountId,
             Accounts (
-                name
+                name,
+                is_real
             )
         )
     """
@@ -90,17 +94,16 @@ async def get_transactions(
     transactions_resp.data = extract_nested_field(
         data=transactions_resp.data,
         nested_key="Accounts",
-        field_keys=["name"],
-        new_keys=["masterAccountName"],
+        field_keys=["name", "is_real"],
+        new_keys=["masterAccountName", "masterAccountIsReal"],
     )
     for transaction in transactions_resp.data:
         transaction["TransactionsSlaves"] = extract_nested_field(
             data=transaction["TransactionsSlaves"],
             nested_key="Accounts",
-            field_keys=["name"],
-            new_keys=["slaveAccountName"],
+            field_keys=["name", "is_real"],
+            new_keys=["slaveAccountName", "slaveAccountIsReal"],
         )
-    logger.debug(transactions_resp.data[0])
     logger.info(f"{len(transactions_resp.data)} transactions found")
     return transactions_resp.data
 

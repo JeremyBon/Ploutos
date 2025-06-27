@@ -12,12 +12,58 @@ interface Account {
   is_real: boolean;
 }
 
+interface TransactionSlave {
+  slaveId: string;
+  type: string;
+  amount: number;
+  date: string;
+  accountId: string;
+  masterId: string;
+  slaveAccountName: string;
+  slaveAccountIsReal: boolean;
+}
+
+interface Transaction {
+  transactionId: string;
+  created_at: string;
+  updated_at: string;
+  description: string;
+  date: string;
+  type: string;
+  amount: number;
+  accountId: string;
+  masterAccountName: string;
+  TransactionsSlaves: TransactionSlave[];
+}
+
+interface MonthlySummaryItem {
+  accountId: string;
+  account_name: string;
+  category: string;
+  sub_category: string;
+  total_amount: number;
+  transaction_count: number;
+}
+
+interface MonthlySummary {
+  revenues: MonthlySummaryItem[];
+  expenses: MonthlySummaryItem[];
+  period: {
+    year?: number;
+    month?: number;
+  };
+}
+
 export default function Home() {
   const [apiResponse, setApiResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const router = useRouter();
 
   const fetchAccounts = async () => {
@@ -35,9 +81,109 @@ export default function Home() {
     }
   };
 
+  const fetchTransactions = async () => {
+    try {
+      setLoadingTransactions(true);
+      
+      // Calculer les dates de début et fin du mois
+      const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
+      
+      const response = await fetch(`http://localhost:8000/transactions?date_from=${startDate}&date_to=${endDate}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      const data = await response.json();
+      setTransactions(data);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
   useEffect(() => {
     fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [selectedYear, selectedMonth]);
+
+  // Fonction pour traiter les transactions et créer le résumé mensuel
+  const processTransactionsToSummary = (): MonthlySummary => {
+    const revenuesMap = new Map<string, MonthlySummaryItem>();
+    const expensesMap = new Map<string, MonthlySummaryItem>();
+
+    transactions.forEach(transaction => {
+      // Traiter les transactions slaves (détail des comptes)
+      transaction.TransactionsSlaves.forEach(slave => {
+        // Filtrer seulement les comptes virtuels (is_real = false)
+        if (slave.slaveAccountIsReal === false) {
+          const accountId = slave.accountId;
+          const accountName = slave.slaveAccountName;
+          const amount = slave.amount;
+          const type = slave.type;
+
+          // Logique de classification basée sur le type :
+          // - type "credit" = dépenses (sortie d'argent)
+          // - type "debit" = revenus (entrée d'argent)
+          const isRevenue = type.toLowerCase() === 'debit'; // Débits = revenus
+          const isExpense = type.toLowerCase() === 'credit'; // Crédits = dépenses
+          
+          if (isRevenue) {
+            const targetMap = revenuesMap;
+            if (targetMap.has(accountId)) {
+              const existing = targetMap.get(accountId)!;
+              existing.total_amount += amount;
+              existing.transaction_count += 1;
+            } else {
+              // Récupérer les informations du compte depuis la liste des comptes
+              const account = accounts.find(acc => acc.account_id === accountId);
+              targetMap.set(accountId, {
+                accountId,
+                account_name: accountName,
+                category: account?.category || 'Inconnu',
+                sub_category: account?.sub_category || 'Inconnu',
+                total_amount: amount,
+                transaction_count: 1
+              });
+            }
+          } else if (isExpense) {
+            const targetMap = expensesMap;
+            if (targetMap.has(accountId)) {
+              const existing = targetMap.get(accountId)!;
+              existing.total_amount += amount;
+              existing.transaction_count += 1;
+            } else {
+              // Récupérer les informations du compte depuis la liste des comptes
+              const account = accounts.find(acc => acc.account_id === accountId);
+              targetMap.set(accountId, {
+                accountId,
+                account_name: accountName,
+                category: account?.category || 'Inconnu',
+                sub_category: account?.sub_category || 'Inconnu',
+                total_amount: amount,
+                transaction_count: 1
+              });
+            }
+          }
+        }
+      });
+    });
+
+    return {
+      revenues: Array.from(revenuesMap.values()).sort((a, b) => b.total_amount - a.total_amount),
+      expenses: Array.from(expensesMap.values()).sort((a, b) => b.total_amount - a.total_amount),
+      period: {
+        year: selectedYear,
+        month: selectedMonth
+      }
+    };
+  };
+
+  const monthlySummary = processTransactionsToSummary();
 
   const totalAssets = accounts.reduce((sum, account) => sum + account.current_amount, 0);
 
@@ -70,6 +216,17 @@ export default function Home() {
   const handleTransactionsClick = () => {
     router.push('/transactions');
   };
+
+  const getMonthName = (month: number) => {
+    const months = [
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    return months[month - 1];
+  };
+
+  const totalRevenues = monthlySummary.revenues.reduce((sum, item) => sum + item.total_amount, 0);
+  const totalExpenses = monthlySummary.expenses.reduce((sum, item) => sum + item.total_amount, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -160,6 +317,146 @@ export default function Home() {
           <div className="flex-1">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-800">Tableau de bord</h2>
+              
+              {/* Date Selector */}
+              <div className="flex justify-center items-center gap-4 mt-4">
+                {/* Previous Month Button */}
+                <button
+                  onClick={() => {
+                    if (selectedMonth === 1) {
+                      setSelectedMonth(12);
+                      setSelectedYear(selectedYear - 1);
+                    } else {
+                      setSelectedMonth(selectedMonth - 1);
+                    }
+                  }}
+                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  title="Mois précédent"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                {/* Current Period Display */}
+                <div className="px-6 py-2 bg-white border border-gray-300 rounded-lg min-w-[200px] text-center">
+                  <div className="font-semibold text-gray-800">{getMonthName(selectedMonth)} {selectedYear}</div>
+                </div>
+                
+                {/* Next Month Button */}
+                <button
+                  onClick={() => {
+                    if (selectedMonth === 12) {
+                      setSelectedMonth(1);
+                      setSelectedYear(selectedYear + 1);
+                    } else {
+                      setSelectedMonth(selectedMonth + 1);
+                    }
+                  }}
+                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                  title="Mois suivant"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                {/* Today Button */}
+                <button
+                  onClick={() => {
+                    const now = new Date();
+                    setSelectedYear(now.getFullYear());
+                    setSelectedMonth(now.getMonth() + 1);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  title="Retour à aujourd'hui"
+                >
+                  Aujourd'hui
+                </button>
+              </div>
+            </div>
+
+            {/* Monthly Summary Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Revenues Card */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Revenus</h3>
+                  <div className="text-2xl font-bold text-green-600">
+                    {totalRevenues.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                  </div>
+                </div>
+                
+                {loadingTransactions ? (
+                  <div className="text-gray-500">Chargement...</div>
+                ) : monthlySummary.revenues.length ? (
+                  <div className="space-y-3">
+                    {monthlySummary.revenues.slice(0, 5).map((item) => (
+                      <div key={item.accountId} className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-800">{item.account_name}</p>
+                          <p className="text-sm text-gray-500">
+                            {item.category} - {item.sub_category}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {item.transaction_count} transaction{item.transaction_count > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-green-600">
+                          {item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-4">Aucun revenu pour cette période</div>
+                )}
+              </div>
+
+              {/* Expenses Card */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Dépenses</h3>
+                  <div className="text-2xl font-bold text-red-600">
+                    {totalExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                  </div>
+                </div>
+                
+                {loadingTransactions ? (
+                  <div className="text-gray-500">Chargement...</div>
+                ) : monthlySummary.expenses.length ? (
+                  <div className="space-y-3">
+                    {monthlySummary.expenses.slice(0, 5).map((item) => (
+                      <div key={item.accountId} className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-800">{item.account_name}</p>
+                          <p className="text-sm text-gray-500">
+                            {item.category} - {item.sub_category}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {item.transaction_count} transaction{item.transaction_count > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-red-600">
+                          {item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-4">Aucune dépense pour cette période</div>
+                )}
+              </div>
+            </div>
+
+            {/* Net Income Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-800">Résultat Net</h3>
+                <div className={`text-2xl font-bold ${totalRevenues - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(totalRevenues - totalExpenses).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                </div>
+              </div>
             </div>
 
             {showToast && (

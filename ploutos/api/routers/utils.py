@@ -1,6 +1,6 @@
 def extract_nested_field(
     data: list, nested_key: str, field_keys: list, new_keys: list = None
-):
+) -> list:
     """
     Extrait des champs d'un objet imbriqué et les place au niveau racine
 
