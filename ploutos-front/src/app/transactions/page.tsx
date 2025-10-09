@@ -1,7 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+
+interface Account {
+  accountId: string;
+  name: string;
+  category: string;
+  sub_category: string;
+  is_real: boolean;
+  original_amount: number;
+  created_at: string;
+  updated_at: string;
+}
 
 interface TransactionSlave {
   slaveId: string;
@@ -33,24 +44,60 @@ const API_URL = 'http://localhost:8000';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('2023-04');
+  const [selectedAccount, setSelectedAccount] = useState<string>('');
+  const [dateFilter, setDateFilter] = useState<'month' | 'custom' | 'all'>('month');
+  const [customDateFrom, setCustomDateFrom] = useState<string>('');
+  const [customDateTo, setCustomDateTo] = useState<string>('');
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editedTransaction, setEditedTransaction] = useState<Transaction | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const fetchTransactions = async () => {
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/accounts`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setAccounts(data);
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+    }
+  }, []);
+
+  const fetchTransactions = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedMonth) {
+      
+      // Gestion du filtre de date
+      if (dateFilter === 'month' && selectedMonth) {
         const [year, month] = selectedMonth.split('-');
         const startDate = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const endDate = `${year}-${month}-${lastDay}`;
         params.append('date_from', startDate);
         params.append('date_to', endDate);
+      } else if (dateFilter === 'custom' && customDateFrom && customDateTo) {
+        params.append('date_from', customDateFrom);
+        params.append('date_to', customDateTo);
+      }
+      // Si dateFilter === 'all', on n'ajoute aucun paramètre de date
+
+      if (selectedAccount) {
+        params.append('account_id', selectedAccount);
       }
 
       const response = await fetch(`${API_URL}/transactions?${params.toString()}`, {
@@ -75,18 +122,19 @@ export default function Transactions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedAccount, dateFilter, customDateFrom, customDateTo]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        await fetchAccounts();
         await fetchTransactions();
       } catch (error) {
         console.error('Error loading data:', error);
       }
     };
     loadData();
-  }, [selectedMonth]);
+  }, [fetchAccounts, fetchTransactions]);
 
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -170,15 +218,70 @@ export default function Transactions() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold text-gray-800">Transactions</h2>
-          <div className="flex items-center">
-            <label htmlFor="month" className="sr-only">Sélectionner le mois</label>
-            <input
-              type="month"
-              id="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <label htmlFor="account" className="text-sm font-medium text-gray-700 mb-1">
+                Compte
+              </label>
+              <select
+                id="account"
+                value={selectedAccount}
+                onChange={(e) => setSelectedAccount(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
+              >
+                <option value="">Tous les comptes</option>
+                {accounts.map((account) => (
+                  <option key={account.accountId} value={account.accountId}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">
+                Période
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value as 'month' | 'custom' | 'all')}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="month">Par mois</option>
+                  <option value="custom">Période personnalisée</option>
+                  <option value="all">Toutes les dates</option>
+                </select>
+                
+                {dateFilter === 'month' && (
+                  <input
+                    type="month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                )}
+                
+                {dateFilter === 'custom' && (
+                  <>
+                    <input
+                      type="date"
+                      value={customDateFrom}
+                      onChange={(e) => setCustomDateFrom(e.target.value)}
+                      placeholder="Date de début"
+                      className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <input
+                      type="date"
+                      value={customDateTo}
+                      onChange={(e) => setCustomDateTo(e.target.value)}
+                      placeholder="Date de fin"
+                      className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

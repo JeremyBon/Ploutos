@@ -59,53 +59,68 @@ async def get_transactions(
     db: SessionDep,
     date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    account_id: Optional[str] = Query(None, description="Filter by account ID"),
 ):
     """Get transactions with optional date filtering"""
-    query = db.table("Transactions").select(
-        """
-        *,
-        Accounts!left (
-            name,
-            is_real
-        ),
-        TransactionsSlaves (
-            masterId,
-            slaveId,
-            type,
-            amount,
-            date,
-            accountId,
-            Accounts (
+    try:
+        query = db.table("Transactions").select(
+            """
+            *,
+            Accounts!left (
                 name,
                 is_real
+            ),
+            TransactionsSlaves (
+                masterId,
+                slaveId,
+                type,
+                amount,
+                date,
+                accountId,
+                Accounts (
+                    name,
+                    is_real
+                )
             )
+        """
         )
-    """
-    )
 
-    if date_from and date_to:
-        # Pour Supabase, on utilise la syntaxe de filtrage par mois
-        query = query.filter("date", "gte", date_from).filter("date", "lte", date_to)
+        if date_from and date_to:
+            # Pour Supabase, on utilise la syntaxe de filtrage par mois
+            query = query.filter("date", "gte", date_from).filter(
+                "date", "lte", date_to
+            )
+        if account_id:
+            logger.info(f"Account ID: {account_id}")
+            query = query.or_(
+                f"accountId.eq.{account_id}",
+                f"TransactionsSlaves.accountId.eq.{account_id}",
+            )
+        logger.info(f"Query: {query}")
 
-    transactions_resp = query.execute()
+        transactions_resp = query.execute()
 
-    if not transactions_resp.data:
-        return []
-    transactions_resp.data = extract_nested_field(
-        data=transactions_resp.data,
-        nested_key="Accounts",
-        field_keys=["name", "is_real"],
-        new_keys=["masterAccountName", "masterAccountIsReal"],
-    )
-    for transaction in transactions_resp.data:
-        transaction["TransactionsSlaves"] = extract_nested_field(
-            data=transaction["TransactionsSlaves"],
+        if not transactions_resp.data:
+            return []
+        transactions_resp.data = extract_nested_field(
+            data=transactions_resp.data,
             nested_key="Accounts",
             field_keys=["name", "is_real"],
-            new_keys=["slaveAccountName", "slaveAccountIsReal"],
+            new_keys=["masterAccountName", "masterAccountIsReal"],
         )
-    logger.info(f"{len(transactions_resp.data)} transactions found")
-    return transactions_resp.data
+        for transaction in transactions_resp.data:
+            transaction["TransactionsSlaves"] = extract_nested_field(
+                data=transaction["TransactionsSlaves"],
+                nested_key="Accounts",
+                field_keys=["name", "is_real"],
+                new_keys=["slaveAccountName", "slaveAccountIsReal"],
+            )
+        logger.info(f"{len(transactions_resp.data)} transactions found")
+
+        return transactions_resp.data
+    except Exception as e:
+        logger.error(f"Error getting transactions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/transactions/{transaction_id}", response_model=TransactionUpdate)

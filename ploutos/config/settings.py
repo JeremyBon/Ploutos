@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     # Database Settings
     supabase_url: str
     supabase_secret: SecretStr
+    GO_CARDLESS_SECRET_ID: SecretStr
+    GO_CARDLESS_SECRET_KEY: SecretStr
 
 
 @lru_cache()
