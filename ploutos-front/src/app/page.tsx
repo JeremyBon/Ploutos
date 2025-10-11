@@ -6,13 +6,26 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
+  Filler,
   Title,
   Tooltip as ChartTooltip,
   Legend as ChartLegend,
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, ChartLegend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  LineElement,
+  PointElement,
+  Filler,
+  Title,
+  ChartTooltip,
+  ChartLegend
+);
 import { useRouter } from 'next/navigation';
 
 interface Account {
@@ -121,12 +134,13 @@ export default function Home() {
   const fetchTransactions = async () => {
     try {
       setLoadingTransactions(true);
-      
-      // Calculer les dates de début et fin du mois
-      const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
-      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
-      const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDay}`;
-      
+      // Calculer la plage de dates: du mois sélectionné -3 jusqu'au mois sélectionné +2
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const start = new Date(selectedYear, selectedMonth - 1 - 3, 1); // month index 0-based
+      const end = new Date(selectedYear, selectedMonth - 1 + 2 + 1, 0); // dernier jour du mois +2
+      const startDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`;
+      const endDate = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${end.getDate()}`;
+
       const response = await fetch(`http://localhost:8000/transactions?date_from=${startDate}&date_to=${endDate}`);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
@@ -156,6 +170,11 @@ export default function Home() {
     transactions.forEach(transaction => {
       // Traiter les transactions slaves (détail des comptes)
       transaction.TransactionsSlaves.forEach(slave => {
+        // Filtrer uniquement les transactions du mois sélectionné
+        const slaveDate = new Date(slave.date);
+        const slaveYear = slaveDate.getFullYear();
+        const slaveMonth = slaveDate.getMonth() + 1;
+        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
         // Filtrer seulement les comptes virtuels (is_real = false)
         if (slave.slaveAccountIsReal === false) {
           const accountId = slave.accountId;
@@ -485,6 +504,102 @@ export default function Home() {
 
   const totalRevenues = monthlySummary.revenues.reduce((sum, item) => sum + item.total_amount, 0);
   const totalExpenses = monthlySummary.expenses.reduce((sum, item) => sum + item.total_amount, 0);
+
+  // Série mensuelle pour la plage selectedMonth-3 .. selectedMonth+2
+  const monthlyRangeSeries = useMemo(() => {
+    // Construire les mois de la plage
+    const months: { year: number; month: number; label: string }[] = [];
+    for (let offset = -3; offset <= 2; offset++) {
+      const d = new Date(selectedYear, selectedMonth - 1 + offset, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${getMonthName(d.getMonth() + 1).substr(0,3)} ${d.getFullYear()}` });
+    }
+
+    // Initialiser les valeurs à 0
+    const revenusArr = Array(months.length).fill(0);
+    const depensesArr = Array(months.length).fill(0);
+
+    // Parcourir toutes les transactions chargées (qui couvrent déjà la plage) et accumuler par mois
+    transactions.forEach(t => {
+      t.TransactionsSlaves.forEach(slave => {
+        // On ne veut que les comptes virtuels
+        if (slave.slaveAccountIsReal === false) {
+          const sd = new Date(slave.date);
+          const sy = sd.getFullYear();
+          const sm = sd.getMonth() + 1;
+          const idx = months.findIndex(m => m.year === sy && m.month === sm);
+          if (idx === -1) return;
+          const isRevenue = slave.type.toLowerCase() === 'debit';
+          const isExpense = slave.type.toLowerCase() === 'credit';
+          if (isRevenue) revenusArr[idx] += slave.amount;
+          if (isExpense) depensesArr[idx] += slave.amount;
+        }
+      });
+    });
+
+    return {
+      labels: months.map(m => m.label),
+      revenusArr,
+      depensesArr
+    };
+  }, [transactions, selectedMonth, selectedYear]);
+
+  const monthlyChartData = useMemo(() => ({
+    labels: monthlyRangeSeries.labels,
+    datasets: [
+      { label: 'Revenus', data: monthlyRangeSeries.revenusArr, backgroundColor: '#16a34a' },
+      { label: 'Dépenses', data: monthlyRangeSeries.depensesArr, backgroundColor: '#dc2626' }
+    ]
+  }), [monthlyRangeSeries]);
+
+  // Calcul du patrimoine total par mois (approx) en utilisant les transactions sur les comptes réels
+  const patrimonySeries = useMemo(() => {
+    // Reuse months from monthlyRangeSeries
+    const labels = monthlyRangeSeries.labels;
+    const n = labels.length;
+    const realDelta = Array(n).fill(0);
+
+    // Accumuler les deltas pour les comptes réels
+    transactions.forEach(t => {
+      t.TransactionsSlaves.forEach(slave => {
+        if (slave.slaveAccountIsReal === true) {
+          const sd = new Date(slave.date);
+          const sy = sd.getFullYear();
+          const sm = sd.getMonth() + 1;
+          const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
+            // match by comparing year/month from labels: rebuild month objects
+            const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
+            return d.getFullYear() === sy && d.getMonth() + 1 === sm;
+          });
+          if (idx === -1) return;
+          const isRevenue = slave.type.toLowerCase() === 'debit';
+          const isExpense = slave.type.toLowerCase() === 'credit';
+          const delta = isRevenue ? slave.amount : (isExpense ? -slave.amount : 0);
+          realDelta[idx] += delta;
+        }
+      });
+    });
+
+    // cumulative
+    const cumulative = realDelta.map((_, i) => realDelta.slice(0, i + 1).reduce((a, b) => a + b, 0));
+    const lastCum = cumulative[n - 1] || 0;
+    const baseline = totalAssets - lastCum; // align last point with current totalAssets
+    const patrimony = cumulative.map(c => baseline + c);
+    return { labels, patrimony };
+  }, [transactions, monthlyRangeSeries, selectedMonth, selectedYear, totalAssets]);
+
+  const patrimonyChartData = useMemo(() => ({
+    labels: patrimonySeries.labels,
+    datasets: [
+      {
+        label: 'Patrimoine total',
+        data: patrimonySeries.patrimony,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,0.1)',
+        tension: 0.3,
+        fill: true
+      }
+    ]
+  }), [patrimonySeries]);
 
   // Préparer les données pour le graphique : revenues/expenses par catégorie (limitées aux top 8 catégories)
   const chartData = useMemo(() => {
@@ -874,6 +989,32 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-gray-800">Résultat Net</h3>
                 <div className={`text-2xl font-bold ${totalRevenues - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {(totalRevenues - totalExpenses).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Revenues/Expenses chart for selected range */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Revenus / Dépenses (par mois)</h3>
+                <div className="text-sm text-gray-500">Période: {monthlyRangeSeries.labels[0]} → {monthlyRangeSeries.labels[monthlyRangeSeries.labels.length - 1]}</div>
+              </div>
+              <div style={{ width: '100%', height: 300 }}>
+                <div className="w-full h-full">
+                  <Bar data={monthlyChartData} options={chartOptions} />
+                </div>
+              </div>
+            </div>
+
+            {/* Patrimony line chart */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Patrimoine total (historique)</h3>
+                <div className="text-sm text-gray-500">Point par mois</div>
+              </div>
+              <div style={{ width: '100%', height: 260 }}>
+                <div className="w-full h-full">
+                  <Line data={patrimonyChartData} options={{...chartOptions, plugins: {...chartOptions.plugins, legend: { display: false }}}} />
                 </div>
               </div>
             </div>
