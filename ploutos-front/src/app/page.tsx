@@ -1,6 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend as ChartLegend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, ChartTooltip, ChartLegend);
 import { useRouter } from 'next/navigation';
 
 interface Account {
@@ -474,6 +486,73 @@ export default function Home() {
   const totalRevenues = monthlySummary.revenues.reduce((sum, item) => sum + item.total_amount, 0);
   const totalExpenses = monthlySummary.expenses.reduce((sum, item) => sum + item.total_amount, 0);
 
+  // Préparer les données pour le graphique : revenues/expenses par catégorie (limitées aux top 8 catégories)
+  const chartData = useMemo(() => {
+    // Combiner catégories des revenus et dépenses
+    const map = new Map<string, { category: string; revenues: number; expenses: number }>();
+
+    monthlySummary.revenues.forEach(item => {
+      const key = item.category || item.account_name || item.accountId;
+      if (!map.has(key)) map.set(key, { category: key, revenues: 0, expenses: 0 });
+      map.get(key)!.revenues += item.total_amount;
+    });
+
+    monthlySummary.expenses.forEach(item => {
+      const key = item.category || item.account_name || item.accountId;
+      if (!map.has(key)) map.set(key, { category: key, revenues: 0, expenses: 0 });
+      map.get(key)!.expenses += item.total_amount;
+    });
+
+    // Convertir en tableau trié par somme décroissante
+    const arr = Array.from(map.values()).map(v => ({
+      ...v,
+      total: v.revenues + v.expenses
+    })).sort((a, b) => b.total - a.total);
+
+    // Limiter le nombre de catégories affichées
+    return arr.slice(0, 8).map(v => ({ name: v.category, Revenus: v.revenues, Depenses: v.expenses }));
+  }, [monthlySummary]);
+
+  // Préparer les données et options pour Chart.js
+  const chartJsData = useMemo(() => {
+    const labels = chartData.map(d => d.name);
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Revenus',
+          data: chartData.map(d => d.Revenus),
+          backgroundColor: '#16a34a'
+        },
+        {
+          label: 'Dépenses',
+          data: chartData.map(d => d.Depenses),
+          backgroundColor: '#dc2626'
+        }
+      ]
+    };
+  }, [chartData]);
+
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top' as const },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw || 0;
+            return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 0, autoSkip: false } },
+      y: { beginAtZero: true }
+    }
+  }), []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Navigation Bar */}
@@ -622,8 +701,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Monthly Summary Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Monthly Summary Cards and Chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* Revenues Card */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -769,6 +848,22 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="text-gray-500 text-center py-4">Aucune dépense pour cette période</div>
+                )}
+              </div>
+
+              {/* Chart - à droite */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 lg:col-span-1">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Revenus / Dépenses par catégorie</h3>
+                </div>
+                {chartData.length === 0 ? (
+                  <div className="text-gray-500 text-center py-8">Aucune donnée pour le graphique</div>
+                ) : (
+                  <div style={{ width: '100%', height: 300 }}>
+                    <div className="w-full h-full">
+                      <Bar data={chartJsData} options={chartOptions} />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
