@@ -4,11 +4,12 @@ This is ploutos
 
 ## Installation
 
-- Next.js: Run following command or go on Next.js [installation](https://nextjs.org/docs/app/getting-started/installation).
-    ```bash
-    npx create-next-app@latest
-    ```
-
+- Next.js: Instal next.js
+  
+```bash
+    pip install poetry 
+    poetry install
+```
 ## Run the project
 
 In one terminal, run the following command to start the Next.js server:

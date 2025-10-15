@@ -4,12 +4,12 @@ from typing import Optional
 from uuid import uuid4
 
 import pandas as pd
-from dotenv import load_dotenv
+from config.settings import get_settings
+
 from nordigen import NordigenClient
 from nordigen.api import AccountApi
 
-load_dotenv()
-
+settings = get_settings()
 
 class Bank(Enum):
     REVOLUT = "REVOLUT"
@@ -20,8 +20,8 @@ TRANSACTION_COL = {Bank.LCL: {"Date": "Date"}}
 
 
 client = NordigenClient(
-    secret_id=os.getenv("NORDIGEN_SECRET_ID"),
-    secret_key=os.getenv("NORDIGEN_SECRET_KEY"),
+    secret_id=settings.GO_CARDLESS_SECRET_ID.get_secret_value(),
+    secret_key=settings.GO_CARDLESS_SECRET_KEY.get_secret_value()
 )
 
 

@@ -1,3 +1,9 @@
 {
-    "cSpell.enabled": false
+    "cSpell.enabled": false,
+    "python.venvPath": "/Users/jeremy_bon/Library/Caches/pypoetry/virtualenvs",
+    "python.venvFolders": [
+        "/Users/jeremy_bon/Library/Caches/pypoetry/virtualenvs"
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": []
 }

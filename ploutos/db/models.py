@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-
+from pydantic import SecretStr
 from pydantic import BaseModel, Field
 
 
@@ -48,6 +48,7 @@ class AccountAmount(BaseModel):
     sub_category: str
     current_amount: float
     is_real: bool
+    max_date: datetime
 
 
 class TransactionBase(BaseModel):
@@ -84,3 +85,16 @@ class TransactionSlave(TransactionSlaveBase):
     slaveId: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class AccountsSecretsBase(BaseModel):
+    updated_at: datetime
+    account_id: UUID
+    secretId: str
+    bankId: str
+
+class AccountsSecretsCreate(AccountsSecretsBase):
+    pass
+
+class AccountsSecrets(AccountsSecretsBase):
+    id: UUID
