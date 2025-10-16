@@ -41,6 +41,7 @@ Other options are Plaid, Tink.io, powens.com, saltedge.
 GoCardless is the best option for now as it is widely used and got a good free tier. ([Reddit Discussion](https://www.reddit.com/r/vosfinances/comments/1f3zw6j/liste_des_transactions_via_api_open_banking/)) 
 Par ailleurs, il existe d'autres projets open sources de open banking comme : [Firefly III](https://www.firefly-iii.org/). It seems to use GoCardless and SaltEdge. 
 The issue with gocardless, it's that i don't have a solution fror Natixis Interépargne and Lydia. Tricount does not have an account in any case. 
+Here is the list of all banks available with GoCardless: [List GoCardless](https://docs.google.com/spreadsheets/d/1EZ5n7QDGaRIot5M86dwqd5UFSGEDTeTRzEq3D9uEDkM/edit?pli=1&gid=976380583#gid=976380583)
 
 
 ##### FAQ

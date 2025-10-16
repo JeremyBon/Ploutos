@@ -19,19 +19,22 @@ client = NordigenClient(
     secret_id=settings.GO_CARDLESS_SECRET_ID.get_secret_value(),
     secret_key=settings.GO_CARDLESS_SECRET_KEY.get_secret_value()
 )
+client.generate_token()
 
 
-def connect_to_bank(account_name: str) -> str:
-    requisition_id = client.initialize_session(
-        # institution id
-        institution_id=os.getenv(f"{account_name.value}_BANK_ID"),
-        # redirect url after successful authentication
-        redirect_uri="https://gocardless.com",
-        # additional layer of unique ID defined by you
-        reference_id=str(uuid4()),
-    ).requisition_id
+def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> str:
+    if requisition_id is None:
+        requisition_id = client.initialize_session(
+            # institution id
+            institution_id=bank_id,
+            # redirect url after successful authentication
+            redirect_uri="https://gocardless.com",
+            # additional layer of unique ID defined by you
+            reference_id=str(uuid4()),
+        ).requisition_id
+    logger.info("Requisition ID:", requisition_id)
     accounts = client.requisition.get_requisition_by_id(requisition_id=requisition_id)
-    return accounts['link']
+    return accounts
 
 
 class BankApi:
