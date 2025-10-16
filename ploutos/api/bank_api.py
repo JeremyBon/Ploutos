@@ -57,7 +57,7 @@ class BankApi:
 
             print(f"Successfully connected to {self.account_name}")
         except Exception as e:
-            print(f"Error getting metadata for {self.account_name}: {e}")
+            logger.error(f"Error getting metadata for {self.account_name} with id {secret}: {e}")
             raise e
 
     def __getattr__(self, name):

@@ -38,6 +38,7 @@ def decrypt(encoded: str) -> str:
 def save_secret(account:AccountsSecretsCreate):
     """Sauvegarde le secret chiffré dans la base de données AccountSecrets."""
     account.secretId = encrypt(account.secretId)
+    get_db.table("AccountSecrets").delete().eq("accountId", account.accountId).execute()
     get_db.table("AccountSecrets").insert(account.model_dump()).execute()
 
 def get_secret(accountId: str) -> tuple[str, str] | tuple[None, None]:

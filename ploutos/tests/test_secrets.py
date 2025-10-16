@@ -104,3 +104,54 @@ def test_get_secret_returns_none_if_not_found(monkeypatch):
     # Appel de la fonction
     result = secrets_module.get_secret("nonexistent_id")
     assert result == (None,None)
+    
+    
+
+
+def test_save_secret_deletes_existing_then_inserts(monkeypatch):
+    """Vérifie que save_secret supprime l'ancien secret avant d'insérer le nouveau."""
+
+    # --- Préparation des mocks ---
+    mock_delete_execute = MagicMock()
+    mock_insert_execute = MagicMock()
+
+    # Mock du comportement de table().delete().eq().execute()
+    mock_table = MagicMock()
+    mock_table.delete.return_value.eq.return_value.execute = mock_delete_execute
+    mock_table.insert.return_value.execute = mock_insert_execute
+
+    # Mock de get_db.table()
+    mock_get_db = MagicMock()
+    mock_get_db.table.return_value = mock_table
+
+    # Patch get_db et encrypt dans utils.secrets
+    monkeypatch.setattr(secrets_module, "get_db", mock_get_db)
+    monkeypatch.setattr(secrets_module, "encrypt", lambda s: f"encrypted_{s}")
+
+    # Simule un objet AccountsSecretsCreate
+    fake_account = SimpleNamespace(
+        accountId="acc_123",
+        secretId="my_secret",
+        model_dump=lambda: {
+            "accountId": "acc_123",
+            "secretId": "encrypted_my_secret",
+        },
+    )
+
+    # --- Appel de la fonction ---
+    secrets_module.save_secret(fake_account)
+
+    # --- Vérifications ---
+    # 1️⃣ Vérifie que delete() est appelé correctement
+    mock_table.delete.return_value.eq.assert_called_once_with("accountId", "acc_123")
+    mock_delete_execute.assert_called_once()
+
+    # 2️⃣ Vérifie que insert() est appelé avec les données chiffrées
+    mock_table.insert.assert_called_once_with(
+        {"accountId": "acc_123", "secretId": "encrypted_my_secret"}
+    )
+    mock_insert_execute.assert_called_once()
+
+    # 3️⃣ Vérifie que le secret a été modifié avant l'insertion
+    assert fake_account.secretId == "encrypted_my_secret"
+
