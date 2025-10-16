@@ -16,7 +16,7 @@ def sample_account():
     """Compte de test avec secret clair."""
     return AccountsSecretsCreate(
         updated_at="2025-10-15T12:00:00",
-        account_id="123e4567-e89b-12d3-a456-426614174000",
+        accountId="123e4567-e89b-12d3-a456-426614174000",
         secretId="mon_super_secret",
         bankId="bank_001"
     )
@@ -103,4 +103,4 @@ def test_get_secret_returns_none_if_not_found(monkeypatch):
 
     # Appel de la fonction
     result = secrets_module.get_secret("nonexistent_id")
-    assert result is None
+    assert result == (None,None)

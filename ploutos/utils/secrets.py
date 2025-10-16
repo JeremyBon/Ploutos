@@ -40,11 +40,11 @@ def save_secret(account:AccountsSecretsCreate):
     account.secretId = encrypt(account.secretId)
     get_db.table("AccountSecrets").insert(account.model_dump()).execute()
 
-def get_secret(account_id: str) -> tuple[str, str] | None:
-    """Récupère et déchiffre le secret pour un account_id donné. Renvoie (secret, bankId) ou None si non trouvé."""
-    data = get_db.table("AccountSecrets").select("secretId,bankId").eq("account_id", account_id).execute()
+def get_secret(accountId: str) -> tuple[str, str] | tuple[None, None]:
+    """Récupère et déchiffre le secret pour un accountId donné. Renvoie (secret, bankId) ou None si non trouvé."""
+    data = get_db.table("AccountSecrets").select("secretId,bankId").eq("accountId", accountId).execute()
     if data.data:
         encrypted_secret = data.data[0]['secretId']
         decrypted_secret = decrypt(encrypted_secret)
         return decrypted_secret, data.data[0]['bankId']
-    return None
+    return None, None

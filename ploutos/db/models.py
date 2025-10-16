@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 from pydantic import SecretStr
 from pydantic import BaseModel, Field
-
+from pydantic import field_serializer
 
 class Account(BaseModel):
     accountId: UUID
@@ -88,10 +88,17 @@ class TransactionSlave(TransactionSlaveBase):
 
 
 class AccountsSecretsBase(BaseModel):
-    updated_at: datetime
-    account_id: UUID
+    updated_at: datetime 
+    accountId: UUID
     secretId: str
     bankId: str
+    
+    @field_serializer("updated_at")
+    def serialize_datetime(self, dt: datetime) -> str:
+        return dt.isoformat()
+    @field_serializer("accountId")
+    def serialize_uuid(self, id: UUID) -> str:
+        return str(id)
 
 class AccountsSecretsCreate(AccountsSecretsBase):
     pass

@@ -2,21 +2,17 @@ import os
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
-
+from utils.secrets import get_secret, save_secret
 import pandas as pd
 from config.settings import get_settings
-
+from loguru import logger
 from nordigen import NordigenClient
 from nordigen.api import AccountApi
 
 settings = get_settings()
 
-class Bank(Enum):
-    REVOLUT = "REVOLUT"
-    LCL = "LCL"
 
 
-TRANSACTION_COL = {Bank.LCL: {"Date": "Date"}}
 
 
 client = NordigenClient(
@@ -25,7 +21,7 @@ client = NordigenClient(
 )
 
 
-def connect_to_bank(account_name: Bank):
+def connect_to_bank(account_name: str) -> str:
     requisition_id = client.initialize_session(
         # institution id
         institution_id=os.getenv(f"{account_name.value}_BANK_ID"),
@@ -44,25 +40,21 @@ class BankApi:
     Class to interact with the Nordigen API for a specific account.
     """
 
-    def __init__(self, account_name: Bank):
-        print(account_name, type(account_name), isinstance(account_name, Bank))
-        if not isinstance(account_name, Bank):
-            raise ValueError(
-                f"account_name must be a BANK enum value, got {type(account_name)}"
-            )
-        self.account_name = account_name.value
+    def __init__(self, accountId: str):
+        
+        secret,self.account_name = get_secret(accountId)
         token_data = client.generate_token()
-        self.api = client.account_api(id=os.getenv(f"{account_name.value}_ACCOUNT_ID"))
+        self.api = client.account_api(id=secret)
         try:
             metadata = self.api.get_metadata()
             if metadata['status'] != 'READY':
-                print(f"Account {account_name} is not enabled")
-                print(connect_to_bank(account_name))
-                raise ValueError(f"Account {account_name} is not enabled")
+                print(f"Account {self.account_name} is not enabled")
+                print(connect_to_bank(self.account_name))
+                raise ValueError(f"Account {self.account_name} is not enabled")
 
-            print(f"Successfully connected to {account_name}")
+            print(f"Successfully connected to {self.account_name}")
         except Exception as e:
-            print(f"Error getting metadata for {account_name}: {e}")
+            print(f"Error getting metadata for {self.account_name}: {e}")
             raise e
 
     def __getattr__(self, name):
