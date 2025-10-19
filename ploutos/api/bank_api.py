@@ -39,6 +39,9 @@ def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> str:
 
 class BankApi:
     api: AccountApi
+    balances: Optional[dict] = None
+    transactions: Optional[dict] = None
+    metadata: Optional[dict] = None
     """
     Class to interact with the Nordigen API for a specific account.
     """
@@ -49,8 +52,8 @@ class BankApi:
         token_data = client.generate_token()
         self.api = client.account_api(id=secret)
         try:
-            metadata = self.api.get_metadata()
-            if metadata['status'] != 'READY':
+            self.metadata = self.api.get_metadata()
+            if self.metadata['status'] != 'READY':
                 print(f"Account {self.account_name} is not enabled")
                 print(connect_to_bank(self.account_name))
                 raise ValueError(f"Account {self.account_name} is not enabled")
@@ -67,28 +70,30 @@ class BankApi:
         """
         return getattr(self.api, name)
 
-    def get_balance(self):
-        balances = self.api.get_balances()['balances']
-        if len(balances) < 1:
+    def get_balances(self):
+        if self.balances is None:
+            self.balances = self.api.get_balances()['balances']
+        if len(self.balances ) < 1:
             raise ValueError(f"No balance found for {self.account_name}")
-        if len(balances) > 1:
-            print(balances)
-            for balance in balances:
+        if len(self.balances ) > 1:
+            print(self.balances )
+            for balance in self.balances :
                 if "closingBooked" in balance["balanceType"]:
                     return balance["balanceAmount"]["amount"]
             raise ValueError(f"Multiple balances found for {self.account_name}")
-        return balances[0]['balanceAmount']['amount']
+        return self.balances [0]['balanceAmount']['amount']
 
     def get_transactions(
         self,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
         raw: bool = False,
-    ):
-        transactions = self.api.get_transactions(date_from=date_from, date_to=date_to)
+    ) ->pd.DataFrame | dict:
+        if self.transactions is None:
+            self.transactions = self.api.get_transactions(date_from=date_from, date_to=date_to)
         if not raw:
-            transactions = transactions_to_df(transactions['transactions'])
-        return transactions
+            return transactions_to_df(self.transactions['transactions'])
+        return self.transactions
 
 
 def transactions_to_df(transactions):

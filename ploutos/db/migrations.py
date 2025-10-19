@@ -1,6 +1,57 @@
 from api.deps import SessionDep
 from db.models import Transaction, TransactionSlave
+from db.models import Transaction, TransactionSlave
+import pandas as pd
 from tqdm import tqdm
+from datetime import datetime
+from uuid import uuid4
+
+
+
+def create_transactions(df:pd.DataFrame,) -> tuple[list[Transaction], list[TransactionSlave]]:
+    """
+    Create master and slave transactions from a DataFrame
+
+    Args:
+        df: DataFrame containing transaction data
+
+    Returns:
+        A tuple containing two lists: master transactions and slave transactions
+    """
+    master_transactions = []
+    slave_transactions = []
+    date=pd.Timestamp(datetime.now())
+    for _, row in df.iterrows(): 
+        if row['amount']<0:
+            raise ValueError(f"Montant négatif pour la transaction {row}")
+        master_transactions.append(
+            Transaction(
+                transactionId=row['masterId'],
+                created_at=date,
+                updated_at=date,
+                description=row["description"],
+                date=pd.Timestamp(row["Date"]),
+                type=row["type"],
+                amount=row["amount"],
+                accountId=row["real_account"],
+            )
+        )
+
+        # Create slave transaction
+        slave_transactions.append(
+            TransactionSlave(
+                slaveId=row['slaveId'],
+                created_at=date,
+                updated_at=date,
+                type=row["type"],
+                amount=-row["amount"],
+                date=date,
+                accountId=row["slave_account"],
+                masterId=row['masterId'],
+            )
+        )
+
+    return master_transactions, slave_transactions
 
 
 def upload_transactions(

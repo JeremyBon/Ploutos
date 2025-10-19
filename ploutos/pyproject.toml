@@ -18,9 +18,9 @@ loguru = "^0.7.3"
 fastapi = "^0.115.12"
 supabase = "^2.15.1"
 google-api-python-client = "^2.170.0"
-tabula-py = "^2.10.0"
 gocardless-pro = "^3.1.0"
 pycryptodome = "^3.23.0"
+tqdm = "^4.67.1"
 
 
 [tool.poetry.group.dev.dependencies]
