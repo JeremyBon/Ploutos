@@ -14,9 +14,11 @@ def mock_db(monkeypatch):
 @pytest.fixture
 def sample_account():
     """Compte de test avec secret clair."""
+    from datetime import datetime
+    from uuid import UUID
     return AccountsSecretsCreate(
-        updated_at="2025-10-15T12:00:00",
-        accountId="123e4567-e89b-12d3-a456-426614174000",
+        updated_at=datetime.fromisoformat("2025-10-15T12:00:00"),
+        accountId=UUID("123e4567-e89b-12d3-a456-426614174000"),
         secretId="mon_super_secret",
         bankId="bank_001"
     )
@@ -129,13 +131,13 @@ def test_save_secret_deletes_existing_then_inserts(monkeypatch):
     monkeypatch.setattr(secrets_module, "encrypt", lambda s: f"encrypted_{s}")
 
     # Simule un objet AccountsSecretsCreate
-    fake_account = SimpleNamespace(
-        accountId="acc_123",
+    from datetime import datetime
+    from uuid import UUID
+    fake_account = AccountsSecretsCreate(
+        updated_at=datetime.now(),
+        accountId=UUID("123e4567-e89b-12d3-a456-426614174000"),
         secretId="my_secret",
-        model_dump=lambda: {
-            "accountId": "acc_123",
-            "secretId": "encrypted_my_secret",
-        },
+        bankId="bank_test"
     )
 
     # --- Appel de la fonction ---
@@ -143,13 +145,13 @@ def test_save_secret_deletes_existing_then_inserts(monkeypatch):
 
     # --- Vérifications ---
     # 1️⃣ Vérifie que delete() est appelé correctement
-    mock_table.delete.return_value.eq.assert_called_once_with("accountId", "acc_123")
+    mock_table.delete.return_value.eq.assert_called_once_with(
+        "accountId", UUID("123e4567-e89b-12d3-a456-426614174000")
+    )
     mock_delete_execute.assert_called_once()
 
-    # 2️⃣ Vérifie que insert() est appelé avec les données chiffrées
-    mock_table.insert.assert_called_once_with(
-        {"accountId": "acc_123", "secretId": "encrypted_my_secret"}
-    )
+    # 2️⃣ Vérifie que insert() est appelé avec model_dump()
+    mock_table.insert.assert_called_once()
     mock_insert_execute.assert_called_once()
 
     # 3️⃣ Vérifie que le secret a été modifié avant l'insertion

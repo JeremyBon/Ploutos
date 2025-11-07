@@ -1,13 +1,13 @@
-import os
-from enum import Enum
+
 from typing import Optional
 from uuid import uuid4
-from utils.secrets import get_secret, save_secret
+from utils.secrets import get_secret
 import pandas as pd
 from config.settings import get_settings
 from loguru import logger
 from nordigen import NordigenClient
 from nordigen.api import AccountApi
+from nordigen.types.types import Requisition
 
 settings = get_settings()
 
@@ -22,7 +22,7 @@ client = NordigenClient(
 client.generate_token()
 
 
-def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> str:
+def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> Requisition:
     if requisition_id is None:
         requisition_id = client.initialize_session(
             # institution id
@@ -39,6 +39,7 @@ def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> str:
 
 class BankApi:
     api: AccountApi
+    account_name: str
     balances: Optional[dict] = None
     transactions: Optional[dict] = None
     metadata: Optional[dict] = None
@@ -47,15 +48,14 @@ class BankApi:
     """
 
     def __init__(self, accountId: str):
-        
-        secret,self.account_name = get_secret(accountId)
-        token_data = client.generate_token()
+        secret, self.account_name = get_secret(accountId)
+        client.generate_token()
         self.api = client.account_api(id=secret)
         try:
             self.metadata = self.api.get_metadata()
-            if self.metadata['status'] != 'READY':
+            if self.metadata is None or self.metadata.get('status') != 'READY':
                 print(f"Account {self.account_name} is not enabled")
-                print(connect_to_bank(self.account_name))
+                print(connect_to_bank(self.account_name, requisition_id=None))
                 raise ValueError(f"Account {self.account_name} is not enabled")
 
             print(f"Successfully connected to {self.account_name}")
@@ -73,15 +73,19 @@ class BankApi:
     def get_balances(self):
         if self.balances is None:
             self.balances = self.api.get_balances()['balances']
-        if len(self.balances ) < 1:
+
+        # Assert that balances is not None after assignment
+        assert self.balances is not None, "Balances should be loaded"
+
+        if len(self.balances) < 1:
             raise ValueError(f"No balance found for {self.account_name}")
-        if len(self.balances ) > 1:
-            print(self.balances )
-            for balance in self.balances :
+        if len(self.balances) > 1:
+            print(self.balances)
+            for balance in self.balances:
                 if "closingBooked" in balance["balanceType"]:
                     return balance["balanceAmount"]["amount"]
             raise ValueError(f"Multiple balances found for {self.account_name}")
-        return self.balances [0]['balanceAmount']['amount']
+        return self.balances[0]['balanceAmount']['amount']
 
     def get_transactions(
         self,
@@ -98,17 +102,21 @@ class BankApi:
 
 def transactions_to_df(transactions):
     """Processthe result of get_transactions"""
+    df_transactions_booked: Optional[pd.DataFrame] = None
+    df_transactions_pending: Optional[pd.DataFrame] = None
+
     if len(transactions["booked"]) > 0:
         df_transactions_booked = process(transactions["booked"])
         df_transactions_booked["Type"] = "Booked"
     if len(transactions["pending"]) > 0:
         df_transactions_pending = process(transactions["pending"])
         df_transactions_pending["Type"] = "Pending"
-    if len(transactions["booked"]) > 0 and len(transactions["pending"]) > 0:
+
+    if df_transactions_booked is not None and df_transactions_pending is not None:
         df_transactions = pd.concat([df_transactions_booked, df_transactions_pending])
-    elif len(transactions["booked"]) > 0:
+    elif df_transactions_booked is not None:
         df_transactions = df_transactions_booked
-    elif len(transactions["pending"]) > 0:
+    elif df_transactions_pending is not None:
         df_transactions = df_transactions_pending
     else:
         df_transactions = pd.DataFrame()

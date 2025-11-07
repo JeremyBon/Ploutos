@@ -1,5 +1,4 @@
 from typing import Annotated
-
 from db import get_db
 from fastapi import Depends
 from supabase import Client

@@ -5,5 +5,13 @@
         "/Users/jeremy_bon/Library/Caches/pypoetry/virtualenvs"
     ],
     "python-envs.defaultEnvManager": "ms-python.python:venv",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python.analysis.extraPaths": [
+        "./ploutos/src"
+    ],
+    "python.autoComplete.extraPaths": [
+        "./ploutos/src"
+    ],
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.autoSearchPaths": true
 }

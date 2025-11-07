@@ -2,11 +2,10 @@ from datetime import datetime
 from typing import Optional
 
 from api.deps import SessionDep
-from api.routers.utils import extract_nested_field
-from db.models import *
+from db.models import AccountCreate, AccountResponse, AccountUpdate
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 router = APIRouter()
 
