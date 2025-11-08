@@ -1,12 +1,11 @@
 from datetime import datetime
 from typing import Optional
 
-from api.deps import SessionDep
-from api.routers.utils import extract_nested_field
-from db.models import *
+from ploutos.api.deps import SessionDep
+from ploutos.db.models import AccountCreate, AccountResponse, AccountUpdate
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -18,6 +17,7 @@ class AccountAmount(BaseModel):
     sub_category: str
     current_amount: float
     is_real: bool
+    max_date: Optional[datetime] = None
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
@@ -133,7 +133,10 @@ async def get_current_amounts(db: SessionDep):
     )
 
     amounts = {
-        account['accountid']: account['total_amount'] for account in amount_response
+        account['accountId']: account['total_amount'] for account in amount_response
+    }
+    max_dates = {
+        account['accountId']: account['max_date'] for account in amount_response
     }
 
     return [
@@ -145,6 +148,7 @@ async def get_current_amounts(db: SessionDep):
             current_amount=amounts.get(account["accountId"], 0)
             + account["original_amount"],
             is_real=account["is_real"],
+            max_date=max_dates.get(account["accountId"], None)
         )
         for account in accounts_response.data
     ]

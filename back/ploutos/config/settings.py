@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     GO_CARDLESS_SECRET_ID: SecretStr
     GO_CARDLESS_SECRET_KEY: SecretStr
     ENCRYPTION_KEY: SecretStr
-    
-    @field_validator("ENCRYPTION_KEY", mode="after")
-    def convert_encryption_key_to_bytes(cls, v: SecretStr) -> bytes:
-        key_hex = v.get_secret_value()
+
+    def get_encryption_key_bytes(self) -> bytes:
+        """Retourne la clé de chiffrement en bytes."""
+        key_hex = self.ENCRYPTION_KEY.get_secret_value()
         try:
             return bytes.fromhex(key_hex)
         except ValueError:
@@ -33,4 +33,4 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """Retourne les paramètres de configuration."""
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]  # Pydantic loads from .env

@@ -1,68 +1,66 @@
-import os
-from enum import Enum
+
 from typing import Optional
 from uuid import uuid4
-
+from ploutos.utils.secrets import get_secret
 import pandas as pd
-from config.settings import get_settings
-
+from ploutos.config.settings import get_settings
+from loguru import logger
 from nordigen import NordigenClient
 from nordigen.api import AccountApi
+from nordigen.types.types import Requisition
 
 settings = get_settings()
 
-class Bank(Enum):
-    REVOLUT = "REVOLUT"
-    LCL = "LCL"
 
 
-TRANSACTION_COL = {Bank.LCL: {"Date": "Date"}}
 
 
 client = NordigenClient(
     secret_id=settings.GO_CARDLESS_SECRET_ID.get_secret_value(),
     secret_key=settings.GO_CARDLESS_SECRET_KEY.get_secret_value()
 )
+client.generate_token()
 
 
-def connect_to_bank(account_name: Bank):
-    requisition_id = client.initialize_session(
-        # institution id
-        institution_id=os.getenv(f"{account_name.value}_BANK_ID"),
-        # redirect url after successful authentication
-        redirect_uri="https://gocardless.com",
-        # additional layer of unique ID defined by you
-        reference_id=str(uuid4()),
-    ).requisition_id
+def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> Requisition:
+    if requisition_id is None:
+        requisition_id = client.initialize_session(
+            # institution id
+            institution_id=bank_id,
+            # redirect url after successful authentication
+            redirect_uri="https://gocardless.com",
+            # additional layer of unique ID defined by you
+            reference_id=str(uuid4()),
+        ).requisition_id
+    logger.info("Requisition ID:", requisition_id)
     accounts = client.requisition.get_requisition_by_id(requisition_id=requisition_id)
-    return accounts['link']
+    return accounts
 
 
 class BankApi:
     api: AccountApi
+    account_name: str
+    balances: Optional[dict] = None
+    transactions: Optional[dict] = None
+    metadata: Optional[dict] = None
     """
     Class to interact with the Nordigen API for a specific account.
     """
 
-    def __init__(self, account_name: Bank):
-        print(account_name, type(account_name), isinstance(account_name, Bank))
-        if not isinstance(account_name, Bank):
-            raise ValueError(
-                f"account_name must be a BANK enum value, got {type(account_name)}"
-            )
-        self.account_name = account_name.value
-        token_data = client.generate_token()
-        self.api = client.account_api(id=os.getenv(f"{account_name.value}_ACCOUNT_ID"))
+    def __init__(self, accountId: str):
+        secret, self.account_name = get_secret(accountId)
+        client.generate_token()
+        self.api = client.account_api(id=secret)
         try:
-            metadata = self.api.get_metadata()
-            if metadata['status'] != 'READY':
-                print(f"Account {account_name} is not enabled")
-                print(connect_to_bank(account_name))
-                raise ValueError(f"Account {account_name} is not enabled")
+            self.metadata = self.api.get_metadata()
+            if self.metadata is None or self.metadata.get('status') != 'READY':
+                print(f"Account {self.account_name} is not enabled")
+                print(connect_to_bank(self.account_name, requisition_id=None))
+                raise ValueError(f"Account {self.account_name} is not enabled")
 
-            print(f"Successfully connected to {account_name}")
+            print(f"Successfully connected to {self.account_name}")
         except Exception as e:
-            print(f"Error getting metadata for {account_name}: {e}")
+            logger.error(f"Error getting metadata for {self.account_name} with id {secret}: {e}")
             raise e
 
     def __getattr__(self, name):
@@ -72,43 +70,53 @@ class BankApi:
         """
         return getattr(self.api, name)
 
-    def get_balance(self):
-        balances = self.api.get_balances()['balances']
-        if len(balances) < 1:
+    def get_balances(self):
+        if self.balances is None:
+            self.balances = self.api.get_balances()['balances']
+
+        # Assert that balances is not None after assignment
+        assert self.balances is not None, "Balances should be loaded"
+
+        if len(self.balances) < 1:
             raise ValueError(f"No balance found for {self.account_name}")
-        if len(balances) > 1:
-            print(balances)
-            for balance in balances:
+        if len(self.balances) > 1:
+            print(self.balances)
+            for balance in self.balances:
                 if "closingBooked" in balance["balanceType"]:
                     return balance["balanceAmount"]["amount"]
             raise ValueError(f"Multiple balances found for {self.account_name}")
-        return balances[0]['balanceAmount']['amount']
+        return self.balances[0]['balanceAmount']['amount']
 
     def get_transactions(
         self,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
         raw: bool = False,
-    ):
-        transactions = self.api.get_transactions(date_from=date_from, date_to=date_to)
+    ) ->pd.DataFrame | dict:
+        if self.transactions is None:
+            self.transactions = self.api.get_transactions(date_from=date_from, date_to=date_to)
         if not raw:
-            transactions = transactions_to_df(transactions['transactions'])
-        return transactions
+            return transactions_to_df(self.transactions['transactions'])
+        return self.transactions
 
 
 def transactions_to_df(transactions):
     """Processthe result of get_transactions"""
+    df_transactions_booked: Optional[pd.DataFrame] = None
+    df_transactions_pending: Optional[pd.DataFrame] = None
+
     if len(transactions["booked"]) > 0:
         df_transactions_booked = process(transactions["booked"])
         df_transactions_booked["Type"] = "Booked"
     if len(transactions["pending"]) > 0:
         df_transactions_pending = process(transactions["pending"])
         df_transactions_pending["Type"] = "Pending"
-    if len(transactions["booked"]) > 0 and len(transactions["pending"]) > 0:
+
+    if df_transactions_booked is not None and df_transactions_pending is not None:
         df_transactions = pd.concat([df_transactions_booked, df_transactions_pending])
-    elif len(transactions["booked"]) > 0:
+    elif df_transactions_booked is not None:
         df_transactions = df_transactions_booked
-    elif len(transactions["pending"]) > 0:
+    elif df_transactions_pending is not None:
         df_transactions = df_transactions_pending
     else:
         df_transactions = pd.DataFrame()

@@ -1,9 +1,9 @@
 # crypto_utils.py
 from Crypto.Cipher import AES
 import base64
-from config.settings import get_settings
-from db import get_db
-from db.models import AccountsSecretsCreate
+from ploutos.config.settings import get_settings
+from ploutos.db import get_db
+from ploutos.db.models import AccountsSecretsCreate
 settings = get_settings()
 
 def encrypt(text: str) -> str:
@@ -11,7 +11,7 @@ def encrypt(text: str) -> str:
     Chiffre un texte en utilisant AES-256 (mode EAX).
     Retourne une chaîne base64 contenant nonce + ciphertext + tag.
     """
-    key = settings.ENCRYPTION_KEY
+    key = settings.get_encryption_key_bytes()
     cipher = AES.new(key, AES.MODE_EAX)
     ciphertext, tag = cipher.encrypt_and_digest(text.encode())
 
@@ -24,7 +24,7 @@ def decrypt(encoded: str) -> str:
     """
     Déchiffre une chaîne base64 issue de encrypt().
     """
-    key = settings.ENCRYPTION_KEY
+    key = settings.get_encryption_key_bytes()
     data = base64.b64decode(encoded)
 
     # Découpe les différentes parties
@@ -38,13 +38,15 @@ def decrypt(encoded: str) -> str:
 def save_secret(account:AccountsSecretsCreate):
     """Sauvegarde le secret chiffré dans la base de données AccountSecrets."""
     account.secretId = encrypt(account.secretId)
+    get_db.table("AccountSecrets").delete().eq("accountId", account.accountId).execute()
     get_db.table("AccountSecrets").insert(account.model_dump()).execute()
 
-def get_secret(account_id: str) -> tuple[str, str] | None:
-    """Récupère et déchiffre le secret pour un account_id donné. Renvoie (secret, bankId) ou None si non trouvé."""
-    data = get_db.table("AccountSecrets").select("secretId,bankId").eq("account_id", account_id).execute()
+def get_secret(accountId: str) -> tuple[str, str]:
+    """Récupère et déchiffre le secret pour un accountId donné. Renvoie (secret, bankId) ou None si non trouvé."""
+    data = get_db.table("AccountSecrets").select("secretId,bankId").eq("accountId", accountId).execute()
     if data.data:
         encrypted_secret = data.data[0]['secretId']
         decrypted_secret = decrypt(encrypted_secret)
         return decrypted_secret, data.data[0]['bankId']
-    return None
+    else:
+        raise ValueError(f"No secret found for account ID: {accountId}")
