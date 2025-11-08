@@ -287,12 +287,18 @@ export default function Home() {
 
     transactions.forEach(transaction => {
       transaction.TransactionsSlaves.forEach(slave => {
+        // Filtrer uniquement les transactions du mois sélectionné
+        const slaveDate = new Date(slave.date);
+        const slaveYear = slaveDate.getUTCFullYear();
+        const slaveMonth = slaveDate.getUTCMonth() + 1;
+        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
+
         // Filtrer seulement les comptes virtuels et la catégorie sélectionnée
         if (slave.slaveAccountIsReal === false && slave.accountId === categoryId) {
           const account = accounts.find(acc => acc.account_id === categoryId);
           const isRevenue = slave.type.toLowerCase() === 'debit';
           const isExpense = slave.type.toLowerCase() === 'credit';
-          
+
           // Vérifier que le type correspond
           if ((type === 'revenue' && isRevenue) || (type === 'expense' && isExpense)) {
             detailedTransactions.push({
