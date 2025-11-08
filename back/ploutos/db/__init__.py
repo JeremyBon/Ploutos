@@ -1,4 +1,4 @@
-from config.settings import get_settings
+from ploutos.config.settings import get_settings
 from supabase import Client, create_client
 
 # Initialisation du client Supabase

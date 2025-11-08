@@ -1,9 +1,9 @@
 # crypto_utils.py
 from Crypto.Cipher import AES
 import base64
-from config.settings import get_settings
-from db import get_db
-from db.models import AccountsSecretsCreate
+from ploutos.config.settings import get_settings
+from ploutos.db import get_db
+from ploutos.db.models import AccountsSecretsCreate
 settings = get_settings()
 
 def encrypt(text: str) -> str:

@@ -1,14 +1,17 @@
-from utils.secrets import encrypt, decrypt, save_secret, get_secret
-import pytest
-from unittest.mock import MagicMock
-from db.models import AccountsSecretsCreate # ou AccountsSecretsCreate selon ton code
 from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+
+from ploutos.db.models import AccountsSecretsCreate
+from ploutos.utils.secrets import encrypt, decrypt, save_secret
+import ploutos.utils.secrets as secrets_module
 
 @pytest.fixture
 def mock_db(monkeypatch):
     """Mock de get_db pour éviter d'appeler la vraie BDD."""
     mock = MagicMock()
-    monkeypatch.setattr("utils.secrets.get_db", mock)
+    monkeypatch.setattr("ploutos.utils.secrets.get_db", mock)
     return mock
 
 @pytest.fixture
@@ -71,8 +74,8 @@ def test_get_secret_decrypts_and_returns_correct_values(monkeypatch):
     mock_get_db = MagicMock()
     mock_get_db.table.return_value = mock_table
 
-    # Patch get_db dans le module utils.secrets
-    import utils.secrets as secrets_module
+    # Patch get_db dans le module ploutos.utils.secrets
+    import ploutos.utils.secrets as secrets_module
     monkeypatch.setattr(secrets_module, "get_db", mock_get_db)
 
     # Appel de la fonction
@@ -82,12 +85,8 @@ def test_get_secret_decrypts_and_returns_correct_values(monkeypatch):
     assert secret == "mon_super_secret"
     assert bank_id == "bank_001"
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock
-import utils.secrets as secrets_module
-
 def test_get_secret_returns_none_if_not_found(monkeypatch):
-    """Vérifie que get_secret renvoie None si aucun résultat."""
+    """Vérifie que get_secret lève une ValueError si aucun résultat."""
 
     # Crée un faux retour de execute() avec .data = []
     fake_execute_result = SimpleNamespace(data=[])
@@ -103,9 +102,9 @@ def test_get_secret_returns_none_if_not_found(monkeypatch):
     # Patch get_db dans le module secrets
     monkeypatch.setattr(secrets_module, "get_db", mock_get_db)
 
-    # Appel de la fonction
-    result = secrets_module.get_secret("nonexistent_id")
-    assert result == (None,None)
+    # Vérifie qu'une ValueError est levée
+    with pytest.raises(ValueError, match="No secret found for account ID: nonexistent_id"):
+        secrets_module.get_secret("nonexistent_id")
     
     
 

@@ -2,8 +2,8 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from api.deps import SessionDep
-from api.routers.utils import extract_nested_field
+from ploutos.api.deps import SessionDep
+from ploutos.api.routers.utils import extract_nested_field
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel

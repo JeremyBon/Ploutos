@@ -14,12 +14,12 @@ This is ploutos
 
 In one terminal, run the following command to start the Next.js server:
 ```bash
-cd ploutos-front && npm run dev 
+cd front && npm run dev 
 ```
 
 In another terminal, run the following command to start the Nest.js server:
 ```bash
-cd ploutos && poetry run uvicorn api.main:app --reload --log-level debug
+cd back && poetry run uvicorn ploutos.api.main:app --reload --log-level debug
 ```
 Go on the following url to access the website:
 ```
@@ -28,6 +28,26 @@ http://localhost:3000
 and on the following url to access the API:
 ```
 http://localhost:8000/docs
+```
+
+## Tests
+
+Pour lancer les tests du projet backend :
+
+```bash
+cd back && poetry run pytest
+```
+
+Options utiles :
+```bash
+# Avec plus de détails
+cd back && poetry run pytest -v
+
+# Pour un fichier spécifique
+cd back && poetry run pytest src/tests/test_secrets.py
+
+# Avec la couverture de code
+cd back && poetry run pytest --cov=ploutos
 ```
 
 ##### Commit

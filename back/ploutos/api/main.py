@@ -1,6 +1,6 @@
 import uvicorn
-from api.routers import accounts, test, transactions
-from config.settings import get_settings
+from ploutos.api.routers import accounts, test, transactions
+from ploutos.config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger

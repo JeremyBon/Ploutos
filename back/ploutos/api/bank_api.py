@@ -1,9 +1,9 @@
 
 from typing import Optional
 from uuid import uuid4
-from utils.secrets import get_secret
+from ploutos.utils.secrets import get_secret
 import pandas as pd
-from config.settings import get_settings
+from ploutos.config.settings import get_settings
 from loguru import logger
 from nordigen import NordigenClient
 from nordigen.api import AccountApi

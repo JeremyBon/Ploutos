@@ -1,6 +1,5 @@
-from api.deps import SessionDep
-from db.models import Transaction, TransactionSlave
-from db.models import Transaction, TransactionSlave
+from ploutos.api.deps import SessionDep
+from ploutos.db.models import Transaction, TransactionSlave
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime

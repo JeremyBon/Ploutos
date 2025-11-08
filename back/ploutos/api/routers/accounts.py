@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from api.deps import SessionDep
-from db.models import AccountCreate, AccountResponse, AccountUpdate
+from ploutos.api.deps import SessionDep
+from ploutos.db.models import AccountCreate, AccountResponse, AccountUpdate
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 from pydantic import BaseModel
