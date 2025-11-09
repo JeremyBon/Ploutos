@@ -182,6 +182,9 @@ export default function Home() {
           const amount = slave.amount;
           const type = slave.type;
 
+          // 🔍 LOGS DE DEBUG
+          console.log(`[SLAVE] Account: ${accountName}, Type: ${type}, Amount: ${amount}, Date: ${slave.date}`);
+
           // Logique de classification basée sur le type :
           // - type "credit" = dépenses (sortie d'argent)
           // - type "debit" = revenus (entrée d'argent)
@@ -189,6 +192,7 @@ export default function Home() {
           const isExpense = type.toLowerCase() === 'credit'; // Crédits = dépenses
           
           if (isRevenue) {
+            console.log(`  ✅ [REVENUE] Adding ${amount}€ to ${accountName}`);
             const targetMap = revenuesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
@@ -207,6 +211,7 @@ export default function Home() {
               });
             }
           } else if (isExpense) {
+            console.log(`  💸 [EXPENSE] Adding ${amount}€ to ${accountName}`);
             const targetMap = expensesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
@@ -287,12 +292,18 @@ export default function Home() {
 
     transactions.forEach(transaction => {
       transaction.TransactionsSlaves.forEach(slave => {
+        // Filtrer uniquement les transactions du mois sélectionné
+        const slaveDate = new Date(slave.date);
+        const slaveYear = slaveDate.getUTCFullYear();
+        const slaveMonth = slaveDate.getUTCMonth() + 1;
+        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
+
         // Filtrer seulement les comptes virtuels et la catégorie sélectionnée
         if (slave.slaveAccountIsReal === false && slave.accountId === categoryId) {
           const account = accounts.find(acc => acc.account_id === categoryId);
           const isRevenue = slave.type.toLowerCase() === 'debit';
           const isExpense = slave.type.toLowerCase() === 'credit';
-          
+
           // Vérifier que le type correspond
           if ((type === 'revenue' && isRevenue) || (type === 'expense' && isExpense)) {
             detailedTransactions.push({
