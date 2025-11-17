@@ -265,3 +265,176 @@ async def update_transaction_slaves(
             f"Error updating transaction slaves for {transaction_id}: {str(e)}"
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/transactions/{transaction_id}/split-slave/{slave_id}", status_code=201)
+async def split_slave(transaction_id: UUID, slave_id: UUID, db: SessionDep):
+    """Split un slave pointant vers un compte réel en une nouvelle transaction.
+
+    Utilisé pour dé-merger un transfert (réversibilité).
+
+    Logique :
+    1. Trouve le slave à splitter
+    2. Vérifie qu'il pointe vers un compte réel
+    3. Prépare la nouvelle transaction master sur le compte du slave
+    4. Prépare un slave inverse pointant vers le compte d'origine
+    5. Prépare la mise à jour du slave original vers le compte Unknown
+    6. Vérifie l'équilibre débits/crédits sur chaque compte
+    7. Effectue toutes les modifications en base de données
+
+    Args:
+        transaction_id: ID de la transaction parente
+        slave_id: ID du slave à splitter
+
+    Returns:
+        Détails de la transaction créée, du slave créé et du slave mis à jour
+    """
+    try:
+        # Récupérer le compte Unknown
+        unknown_account_response = db.table("Accounts").select("accountId").eq(
+            "name", "Unknown"
+        ).eq("category", "Unknown").eq("sub_category", "Unknown").eq(
+            "is_real", False
+        ).execute()
+
+        if not unknown_account_response.data:
+            raise HTTPException(
+                status_code=500,
+                detail="Unknown account not found in database"
+            )
+
+        unknown_account_id = unknown_account_response.data[0]["accountId"]
+        logger.info(f"Found Unknown account: {unknown_account_id}")
+
+        # 1. Récupérer la transaction avec tous ses slaves
+        logger.debug(f"[SPLIT_SLAVE] Starting split for transaction {transaction_id}, slave {slave_id}")
+        tx_response = db.table("Transactions").select("""
+            *,
+            TransactionsSlaves (
+                *,
+                Accounts (
+                    is_real,
+                    name
+                )
+            )
+        """).eq("transactionId", str(transaction_id)).execute()
+
+        if not tx_response.data:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+
+        transaction = tx_response.data[0]
+        slaves = transaction.get("TransactionsSlaves", [])
+        logger.debug(f"[SPLIT_SLAVE] Found transaction {transaction['transactionId']} with {len(slaves)} slaves")
+
+        slave_to_split = None
+        for slave in slaves:
+            if str(slave["slaveId"]) == str(slave_id):
+                slave_to_split = slave
+                break
+
+        if not slave_to_split:
+            available_slave_ids = [str(s["slaveId"]) for s in slaves]
+            raise HTTPException(
+                status_code=404,
+                detail=f"Slave {slave_id} not found. Available slaves: {available_slave_ids}"
+            )
+
+        logger.debug(f"[SPLIT_SLAVE] Slave to split: accountId={slave_to_split['accountId']}, "
+                    f"type={slave_to_split['type']}, amount={slave_to_split['amount']}")
+
+        # 2. Vérifier que le slave pointe vers un compte réel
+        slave_account = slave_to_split.get("Accounts", {})
+        if not slave_account.get("is_real", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Can only split slaves pointing to real accounts"
+            )
+
+        master_type = transaction["type"].lower()
+
+        # 3. Préparer la nouvelle transaction master sur le compte du slave
+        current_time = datetime.now().isoformat()
+        new_transaction = {
+            "accountId": slave_to_split["accountId"],
+            "amount": slave_to_split["amount"],
+            "type": "credit" if slave_to_split['type'] == "credit" else "debit",
+            "date": slave_to_split["date"],
+            "description": f"Split from transaction {transaction_id}",
+            "created_at": current_time,
+            "updated_at": current_time,
+        }
+
+        # 4. Préparer le slave inverse pointant vers le compte d'origine
+        new_slave = {
+            "accountId": transaction["accountId"],
+            "amount": slave_to_split["amount"],
+            "type": "debit" if slave_to_split['type'] == "credit" else "credit",
+            "date": slave_to_split["date"],
+            "created_at": current_time,
+            "updated_at": current_time,
+        }
+        logger.debug(f"[SPLIT_SLAVE] Master type: {master_type}, New transaction type: {new_transaction['type']}, New slave type: {new_slave['type']}")
+
+
+        # 5. Préparer la mise à jour du slave original vers Unknown
+        updated_slave_data = {
+            "accountId": unknown_account_id,
+            "updated_at": current_time,
+        }
+
+        # 6. Vérifier l'équilibre débits/crédits sur chaque compte
+        assert new_transaction["amount"] >= 0, "Transaction amount must be non-negative"
+        assert new_transaction["type"] in ["debit", "credit"], "Transaction type must be 'debit' or 'credit'"
+        assert new_transaction["accountId"] is not None, "Transaction accountId cannot be None"
+
+        # Compte master original
+        master_debits_before = transaction["amount"] if master_type == "debit" else 0
+        master_debits_before += slave_to_split["amount"] if slave_to_split["type"] == "debit" else 0
+        master_credits_before = transaction["amount"] if master_type == "credit" else 0
+        master_credits_before += slave_to_split["amount"] if slave_to_split["type"] == "credit" else 0
+
+        # Check created transaction is the same as the old slave
+        master_debits_after = new_transaction["amount"] if new_transaction['type'] == "debit" else 0
+        master_debits_after += new_slave["amount"] if new_slave["type"] == "debit" else 0
+
+        master_credits_after = new_transaction["amount"] if new_transaction['type'] == "credit" else 0
+        master_credits_after += new_slave["amount"] if new_slave["type"] == "credit" else 0
+
+        assert master_debits_before == master_debits_after, \
+            f"Accounts debits mismatch: before={master_debits_before}, after={master_debits_after}"
+        assert master_credits_before == master_credits_after, \
+            f"Accounts credits mismatch: before={master_credits_before}, after={master_credits_after}"
+
+
+        logger.info("All balance assertions passed successfully")
+
+        # 7. Modifications en base de données
+        created_tx_response = db.table("Transactions").insert(new_transaction).execute()
+        created_transaction = created_tx_response.data[0]
+        logger.info(f"Created new transaction: {created_transaction['transactionId']}")
+
+        new_slave["masterId"] = created_transaction["transactionId"]
+        created_slave_response = db.table("TransactionsSlaves").insert(new_slave).execute()
+        created_slave = created_slave_response.data[0]
+        logger.info(f"Created inverse slave: {created_slave['slaveId']}")
+
+        updated_slave_response = db.table("TransactionsSlaves").update(
+            updated_slave_data
+        ).eq("slaveId", str(slave_id)).execute()
+        updated_slave = updated_slave_response.data[0]
+        logger.info(f"Updated original slave {slave_id} to point to Unknown account")
+
+        return {
+            "created_transaction": created_transaction,
+            "created_slave": created_slave,
+            "updated_slave": updated_slave,
+        }
+
+    except HTTPException:
+        raise
+    except AssertionError as e:
+        logger.error(f"Assertion failed during slave split: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Balance validation failed: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error splitting slave {slave_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

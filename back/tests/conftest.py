@@ -11,18 +11,21 @@ from ploutos.api.main import app
 
 
 @pytest.fixture
-def mock_db(monkeypatch):
+def mock_db():
     """Mock de get_db pour éviter d'appeler la vraie BDD Supabase."""
-    mock = MagicMock()
-    # Patch dans tous les modules qui utilisent get_db
-    monkeypatch.setattr("ploutos.api.deps.get_db", lambda: mock)
-    return mock
+    return MagicMock()
 
 
 @pytest.fixture
-def test_client():
-    """Client de test FastAPI."""
-    return TestClient(app)
+def test_client(mock_db, monkeypatch):
+    """Client de test FastAPI avec mock DB."""
+    # Patcher directement l'objet get_db dans le module ploutos.db
+    import ploutos.db
+    monkeypatch.setattr(ploutos.db, "get_db", mock_db)
+
+    # Créer le client de test
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture
@@ -87,13 +90,16 @@ def sample_transfer_pair(sample_accounts, sample_unknown_account):
             "updated_at": "2025-01-15T00:00:00",
             "TransactionsSlaves": [
                 {
-                    "slaveId": "slave-aaa",
+                    "slaveId": "aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbbbb",
                     "type": "debit",  # Type inversé
-                    "amount": -100.0,  # Montant négatif
+                    "amount": 100.0,  # Montant négatif
                     "date": "2025-01-15T00:00:00",
                     "accountId": sample_unknown_account["accountId"],
                     "masterId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                    "slaveAccountIsReal": False,
+                    "Accounts": {
+                        "is_real": False,
+                        "name": "Unknown"
+                    }
                 }
             ],
         },
@@ -108,13 +114,16 @@ def sample_transfer_pair(sample_accounts, sample_unknown_account):
             "updated_at": "2025-01-15T00:00:00",
             "TransactionsSlaves": [
                 {
-                    "slaveId": "slave-bbb",
+                    "slaveId": "bbbbbbbb-bbbb-bbbb-bbbb-cccccccccccc",
                     "type": "credit",  # Type inversé
-                    "amount": -100.0,  # Montant négatif
+                    "amount": 100.0,  # Montant négatif
                     "date": "2025-01-15T00:00:00",
                     "accountId": sample_unknown_account["accountId"],
                     "masterId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-                    "slaveAccountIsReal": False,
+                    "Accounts": {
+                        "is_real": False,
+                        "name": "Unknown"
+                    }
                 }
             ],
         },
@@ -140,14 +149,16 @@ def sample_merged_transaction(sample_accounts):
         "updated_at": "2025-01-10T00:00:00",
         "TransactionsSlaves": [
             {
-                "slaveId": "slave-ccc",
+                "slaveId": "cccccccc-cccc-cccc-cccc-dddddddddddd",
                 "type": "debit",
                 "amount": 100.0,  # Montant positif pour le slave
                 "date": "2025-01-10T00:00:00",
                 "accountId": sample_accounts[1]["accountId"],  # Banque B (compte réel!)
                 "masterId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-                "slaveAccountIsReal": True,  # Indicateur de transfert
-                "slaveAccountName": "Banque B",
+                "Accounts": {
+                    "is_real": True,  # Compte réel = indicateur de transfert
+                    "name": "Banque B"
+                }
             }
         ],
     }

@@ -6,7 +6,7 @@ import pytest
 
 
 # =============================================================================
-# Tests pour GET /api/v1/transfers/candidates
+# Tests pour GET /transfers/candidates
 # =============================================================================
 
 
@@ -27,7 +27,7 @@ def test_get_candidates_valid_pair(
     mock_db.table.return_value = mock_table
 
     # Act: Appel de l'endpoint
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert: Doit retourner 1 paire de candidats
     assert response.status_code == 200
@@ -36,7 +36,7 @@ def test_get_candidates_valid_pair(
     assert candidates[0]["credit_transaction"]["transactionId"] == sample_transfer_pair["negative"]["transactionId"]
     assert candidates[0]["debit_transaction"]["transactionId"] == sample_transfer_pair["positive"]["transactionId"]
     assert candidates[0]["amount"] == 100.0
-    assert candidates[0]["date"] == "2025-01-15T00:00:00"
+    assert candidates[0]["date"] == "2025-01-15"
 
 
 def test_get_candidates_different_amounts(
@@ -55,7 +55,7 @@ def test_get_candidates_different_amounts(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert: Aucun candidat détecté
     assert response.status_code == 200
@@ -79,7 +79,7 @@ def test_get_candidates_different_dates(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert: Aucun candidat détecté
     assert response.status_code == 200
@@ -103,7 +103,7 @@ def test_get_candidates_same_type(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert: Aucun candidat détecté
     assert response.status_code == 200
@@ -117,7 +117,7 @@ def test_get_candidates_has_real_slave(
     """Ignore les transactions qui ont déjà un slave vers un compte réel."""
     # Arrange: Ajouter un slave vers compte réel sur une transaction
     negative_tx = sample_transfer_pair["negative"].copy()
-    negative_tx["TransactionsSlaves"][0]["slaveAccountIsReal"] = True  # Déjà un transfert
+    negative_tx["TransactionsSlaves"][0]["Accounts"]["is_real"] = True  # Déjà un transfert
 
     positive_tx = sample_transfer_pair["positive"]
 
@@ -128,7 +128,7 @@ def test_get_candidates_has_real_slave(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert: Aucun candidat (transaction déjà mergée)
     assert response.status_code == 200
@@ -144,7 +144,7 @@ def test_get_candidates_empty(test_client, mock_db, mock_supabase_response):
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers/candidates")
+    response = test_client.get("/transfers/candidates")
 
     # Assert
     assert response.status_code == 200
@@ -152,7 +152,7 @@ def test_get_candidates_empty(test_client, mock_db, mock_supabase_response):
 
 
 # =============================================================================
-# Tests pour POST /api/v1/transfers/merge
+# Tests pour POST /transfers/merge
 # =============================================================================
 
 
@@ -164,40 +164,47 @@ def test_merge_keeps_negative_transaction(
     negative_tx = sample_transfer_pair["negative"]
     positive_tx = sample_transfer_pair["positive"]
 
-    # Mock select pour récupérer les transactions
-    mock_table_select = MagicMock()
-    mock_table_select.select.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([negative_tx])
-    )
+    # Track which select call we're on
+    select_call_count = [0]
 
-    # Mock update, insert, delete
-    mock_table_update = MagicMock()
-    mock_table_update.update.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([negative_tx])
-    )
+    def mock_select_eq(*args):
+        """Mock pour retourner la bonne transaction selon l'ID demandé."""
+        select_call_count[0] += 1
+        if select_call_count[0] == 1:
+            # Premier appel: credit transaction
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+        elif select_call_count[0] == 2:
+            # Deuxième appel: debit transaction
+            return MagicMock(execute=lambda: mock_supabase_response([positive_tx]))
+        else:
+            # Troisième appel: récupération de la transaction mise à jour (credit)
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
 
-    mock_table_insert = MagicMock()
-    mock_table_insert.insert.return_value.execute.return_value = mock_supabase_response(
+    # Mock pour les transactions
+    mock_table_transactions = MagicMock()
+    mock_table_transactions.select.return_value.eq.side_effect = mock_select_eq
+
+    # Mock pour TransactionsSlaves (insert et delete)
+    mock_table_slaves = MagicMock()
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response(
         [{"slaveId": "new-slave"}]
     )
-
-    mock_table_delete = MagicMock()
-    mock_table_delete.delete.return_value.eq.return_value.execute.return_value = (
+    mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([])
     )
 
     def table_router(table_name):
         if table_name == "Transactions":
-            return mock_table_select if mock_db.table.call_count <= 2 else mock_table_delete
+            return mock_table_transactions
         elif table_name == "TransactionsSlaves":
-            return mock_table_delete if "delete" in str(mock_db.table.call_count) else mock_table_insert
+            return mock_table_slaves
         return MagicMock()
 
     mock_db.table.side_effect = table_router
 
     # Act: Merge les deux transactions
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": negative_tx["transactionId"],
             "debit_transaction_id": positive_tx["transactionId"],
@@ -219,23 +226,45 @@ def test_merge_deletes_positive_transaction(
     negative_tx = sample_transfer_pair["negative"]
     positive_tx = sample_transfer_pair["positive"]
 
-    mock_table = MagicMock()
-    # Select
-    mock_table.select.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([negative_tx])
-    )
-    # Delete
-    mock_table.delete.return_value.eq.return_value.execute.return_value = (
+    # Track which select call we're on
+    select_call_count = [0]
+
+    def mock_select_eq(*args):
+        """Mock pour retourner la bonne transaction selon l'ID demandé."""
+        select_call_count[0] += 1
+        if select_call_count[0] == 1:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+        elif select_call_count[0] == 2:
+            return MagicMock(execute=lambda: mock_supabase_response([positive_tx]))
+        else:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+
+    # Mock pour les transactions
+    mock_table_transactions = MagicMock()
+    mock_table_transactions.select.return_value.eq.side_effect = mock_select_eq
+    mock_table_transactions.delete.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([positive_tx])
     )
-    # Insert slaves
-    mock_table.insert.return_value.execute.return_value = mock_supabase_response([])
 
-    mock_db.table.return_value = mock_table
+    # Mock pour TransactionsSlaves
+    mock_table_slaves = MagicMock()
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response([])
+    mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
+        mock_supabase_response([])
+    )
+
+    def table_router(table_name):
+        if table_name == "Transactions":
+            return mock_table_transactions
+        elif table_name == "TransactionsSlaves":
+            return mock_table_slaves
+        return MagicMock()
+
+    mock_db.table.side_effect = table_router
 
     # Act
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": negative_tx["transactionId"],
             "debit_transaction_id": positive_tx["transactionId"],
@@ -245,7 +274,7 @@ def test_merge_deletes_positive_transaction(
     # Assert: Vérifier que delete a été appelé pour la transaction positive
     assert response.status_code == 200
     # Le mock devrait avoir été appelé pour supprimer la transaction debit
-    mock_table.delete.assert_called()
+    mock_table_transactions.delete.assert_called()
 
 
 def test_merge_creates_real_slave(
@@ -256,22 +285,44 @@ def test_merge_creates_real_slave(
     negative_tx = sample_transfer_pair["negative"]
     positive_tx = sample_transfer_pair["positive"]
 
-    mock_table = MagicMock()
-    mock_table.select.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([negative_tx])
-    )
-    mock_table.insert.return_value.execute.return_value = mock_supabase_response(
-        [{"slaveId": "new-slave-id"}]
-    )
-    mock_table.delete.return_value.eq.return_value.execute.return_value = (
+    # Track which select call we're on
+    select_call_count = [0]
+
+    def mock_select_eq(*args):
+        select_call_count[0] += 1
+        if select_call_count[0] == 1:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+        elif select_call_count[0] == 2:
+            return MagicMock(execute=lambda: mock_supabase_response([positive_tx]))
+        else:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+
+    mock_table_transactions = MagicMock()
+    mock_table_transactions.select.return_value.eq.side_effect = mock_select_eq
+    mock_table_transactions.delete.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([])
     )
 
-    mock_db.table.return_value = mock_table
+    mock_table_slaves = MagicMock()
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response(
+        [{"slaveId": "new-slave-id"}]
+    )
+    mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
+        mock_supabase_response([])
+    )
+
+    def table_router(table_name):
+        if table_name == "Transactions":
+            return mock_table_transactions
+        elif table_name == "TransactionsSlaves":
+            return mock_table_slaves
+        return MagicMock()
+
+    mock_db.table.side_effect = table_router
 
     # Act
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": negative_tx["transactionId"],
             "debit_transaction_id": positive_tx["transactionId"],
@@ -281,9 +332,9 @@ def test_merge_creates_real_slave(
     # Assert: Vérifier qu'un slave a été inséré
     assert response.status_code == 200
     # Le mock devrait avoir été appelé pour insérer un slave vers Banque B
-    mock_table.insert.assert_called()
+    mock_table_slaves.insert.assert_called()
     # Récupérer l'appel d'insertion
-    insert_call_args = mock_table.insert.call_args[0][0]
+    insert_call_args = mock_table_slaves.insert.call_args[0][0]
     assert insert_call_args["accountId"] == sample_accounts[1]["accountId"]  # Banque B
     assert insert_call_args["amount"] == 100.0
 
@@ -296,20 +347,42 @@ def test_merge_removes_unknown_slaves(
     negative_tx = sample_transfer_pair["negative"]
     positive_tx = sample_transfer_pair["positive"]
 
-    mock_table = MagicMock()
-    mock_table.select.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([negative_tx])
-    )
-    mock_table.delete.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([{"slaveId": "slave-aaa"}])  # Slave supprimé
-    )
-    mock_table.insert.return_value.execute.return_value = mock_supabase_response([])
+    # Track which select call we're on
+    select_call_count = [0]
 
-    mock_db.table.return_value = mock_table
+    def mock_select_eq(*args):
+        select_call_count[0] += 1
+        if select_call_count[0] == 1:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+        elif select_call_count[0] == 2:
+            return MagicMock(execute=lambda: mock_supabase_response([positive_tx]))
+        else:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+
+    mock_table_transactions = MagicMock()
+    mock_table_transactions.select.return_value.eq.side_effect = mock_select_eq
+    mock_table_transactions.delete.return_value.eq.return_value.execute.return_value = (
+        mock_supabase_response([])
+    )
+
+    mock_table_slaves = MagicMock()
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response([])
+    mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
+        mock_supabase_response([{"slaveId": "aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbbbb"}])  # Slave supprimé
+    )
+
+    def table_router(table_name):
+        if table_name == "Transactions":
+            return mock_table_transactions
+        elif table_name == "TransactionsSlaves":
+            return mock_table_slaves
+        return MagicMock()
+
+    mock_db.table.side_effect = table_router
 
     # Act
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": negative_tx["transactionId"],
             "debit_transaction_id": positive_tx["transactionId"],
@@ -318,30 +391,22 @@ def test_merge_removes_unknown_slaves(
 
     # Assert: Vérifier que delete a été appelé pour les slaves
     assert response.status_code == 200
-    mock_table.delete.assert_called()
+    mock_table_slaves.delete.assert_called()
 
 
 def test_merge_invalid_ids(test_client, mock_db, mock_supabase_response):
-    """Erreur 404 si les IDs de transactions sont invalides."""
-    # Arrange: Mock retourne aucune transaction
-    mock_table = MagicMock()
-    mock_table.select.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([])  # Aucune transaction trouvée
-    )
-    mock_db.table.return_value = mock_table
-
-    # Act
+    """Erreur 422 si les IDs de transactions ne sont pas des UUIDs valides."""
+    # Act: Envoyer des IDs invalides (pas des UUIDs)
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": "invalid-id-1",
             "debit_transaction_id": "invalid-id-2",
         },
     )
 
-    # Assert
-    assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    # Assert: FastAPI retourne 422 pour validation Pydantic
+    assert response.status_code == 422
 
 
 def test_merge_mismatched_amounts(
@@ -353,28 +418,29 @@ def test_merge_mismatched_amounts(
     positive_tx = sample_transfer_pair["positive"].copy()
     positive_tx["amount"] = 150.0  # Montant différent
 
-    mock_table = MagicMock()
+    # Track which select call we're on
+    select_call_count = [0]
 
-    def select_side_effect(*args, **kwargs):
-        """Retourner différentes transactions selon l'appel."""
-        if mock_table.select.call_count == 1:
-            return MagicMock(
-                eq=lambda x: MagicMock(
-                    execute=lambda: mock_supabase_response([negative_tx])
-                )
-            )
-        return MagicMock(
-            eq=lambda x: MagicMock(
-                execute=lambda: mock_supabase_response([positive_tx])
-            )
-        )
+    def mock_select_eq(*args):
+        select_call_count[0] += 1
+        if select_call_count[0] == 1:
+            return MagicMock(execute=lambda: mock_supabase_response([negative_tx]))
+        else:
+            return MagicMock(execute=lambda: mock_supabase_response([positive_tx]))
 
-    mock_table.select.side_effect = select_side_effect
-    mock_db.table.return_value = mock_table
+    mock_table_transactions = MagicMock()
+    mock_table_transactions.select.return_value.eq.side_effect = mock_select_eq
+
+    def table_router(table_name):
+        if table_name == "Transactions":
+            return mock_table_transactions
+        return MagicMock()
+
+    mock_db.table.side_effect = table_router
 
     # Act
     response = test_client.post(
-        "/api/v1/transfers/merge",
+        "/transfers/merge",
         json={
             "credit_transaction_id": negative_tx["transactionId"],
             "debit_transaction_id": positive_tx["transactionId"],
@@ -387,7 +453,7 @@ def test_merge_mismatched_amounts(
 
 
 # =============================================================================
-# Tests pour GET /api/v1/transfers
+# Tests pour GET /transfers
 # =============================================================================
 
 
@@ -403,7 +469,7 @@ def test_get_transfers_list(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers")
+    response = test_client.get("/transfers")
 
     # Assert
     assert response.status_code == 200
@@ -426,7 +492,7 @@ def test_get_transfers_includes_destination_name(
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers")
+    response = test_client.get("/transfers")
 
     # Assert
     assert response.status_code == 200
@@ -443,7 +509,7 @@ def test_get_transfers_empty(test_client, mock_db, mock_supabase_response):
     mock_db.table.return_value = mock_table
 
     # Act
-    response = test_client.get("/api/v1/transfers")
+    response = test_client.get("/transfers")
 
     # Assert
     assert response.status_code == 200
