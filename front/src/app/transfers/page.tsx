@@ -365,7 +365,7 @@ export default function Transfers() {
                             </p>
                             <p className="text-gray-600">
                               <span className="font-medium">Montant:</span>{' '}
-                              <span className="font-bold text-red-600">{candidate.credit_transaction.amount.toFixed(2)}€</span>
+                              <span className="font-bold text-red-600">-{candidate.credit_transaction.amount.toFixed(2)}€</span>
                             </p>
                           </div>
                         </div>
