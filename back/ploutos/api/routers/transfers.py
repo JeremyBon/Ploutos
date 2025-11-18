@@ -6,7 +6,12 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from ploutos.api.deps import SessionDep
-from ploutos.db.models import TransferCandidate, TransferMergeRequest
+from ploutos.db.models import (
+    RejectedTransferPair,
+    RejectedTransferPairCreate,
+    TransferCandidate,
+    TransferMergeRequest,
+)
 
 router = APIRouter()
 
@@ -15,7 +20,7 @@ router = APIRouter()
 async def get_transfer_candidates(db: SessionDep):
     """Détecte automatiquement les paires de transactions candidates pour un transfert.
 
-    Critères de matching stricts :
+    Utilise la fonction RPC `get_transfer_candidates` qui applique les critères :
     - Montants strictement identiques
     - Même jour exact
     - Types opposés (credit/debit)
@@ -25,71 +30,58 @@ async def get_transfer_candidates(db: SessionDep):
         Liste de paires candidates avec leurs détails
     """
     try:
-        # Récupérer toutes les transactions avec leurs slaves et les infos de compte
-        response = db.table("Transactions").select("""
-            *,
-            TransactionsSlaves (
-                *,
-                Accounts (
-                    is_real
-                )
-            )
-        """).execute()
+        # Appeler la RPC qui retourne les paires candidates
+        response = db.rpc("get_transfer_candidates").execute()
 
         if not response.data:
             return []
 
-        transactions = response.data
-
-        # Filtrer les transactions qui ont déjà des slaves vers des comptes réels
-        clean_transactions = []
-        for tx in transactions:
-            slaves = tx.get("TransactionsSlaves", [])
-            # Vérifier qu'aucun slave ne pointe vers un compte réel
-            has_real_slave = any(
-                slave.get("Accounts", {}).get("is_real", False)
-                for slave in slaves
-            )
-            if not has_real_slave:
-                clean_transactions.append(tx)
-
-        logger.debug(f"Total transactions: {len(transactions)}, Clean transactions: {len(clean_transactions)}")
-
-        # Grouper par (date, montant) pour trouver les paires potentielles
-        groups: dict[tuple[str, float], list[dict]] = {}
-        for tx in clean_transactions:
-            # Extraire la date (format ISO, prendre juste la partie date)
-            tx_date = tx["date"].split("T")[0] if "T" in tx["date"] else tx["date"]
-            key = (tx_date, tx["amount"])
-            if key not in groups:
-                groups[key] = []
-            groups[key].append(tx)
-
-        logger.debug(f"Groups created: {len(groups)}")
-
-        # Identifier les paires avec types opposés
         candidates = []
-        for (date, amount), txs in groups.items():
-            # Séparer credit et debit
-            credits = [t for t in txs if t["type"].lower() == "credit"]
-            debits = [t for t in txs if t["type"].lower() == "debit"]
+        for row in response.data:
+            # Construire les objets transaction à partir des résultats RPC
+            tx1 = {
+                "transactionId": row["transactionid_1"],
+                "description": row["description_1"],
+                "date": row["date_1"],
+                "type": row["type_1"],
+                "amount": float(row["amount_1"]),
+                "accountId": row["accountid_1"],
+                "accountName": row["accountname_1"],
+            }
+            tx2 = {
+                "transactionId": row["transactionid_2"],
+                "description": row["description_2"],
+                "date": row["date_2"],
+                "type": row["type_2"],
+                "amount": float(row["amount_2"]),
+                "accountId": row["accountid_2"],
+                "accountName": row["accountname_2"],
+            }
 
-            logger.debug(f"Group ({date}, {amount}): {len(credits)} credits, {len(debits)} debits")
+            # Identifier quelle transaction est credit et laquelle est debit
+            if tx1["type"].lower() == "credit":
+                credit_tx = tx1
+                debit_tx = tx2
+            else:
+                credit_tx = tx2
+                debit_tx = tx1
 
-            # Créer des paires
-            for credit_tx in credits:
-                for debit_tx in debits:
-                    # Vérifier que ce sont des transactions différentes
-                    if credit_tx["transactionId"] != debit_tx["transactionId"]:
-                        logger.debug(f"Creating candidate: {credit_tx['transactionId']} + {debit_tx['transactionId']}")
-                        candidate = TransferCandidate(
-                            credit_transaction=credit_tx,
-                            debit_transaction=debit_tx,
-                            amount=amount,
-                            date=date,
-                            match_confidence=1.0,  # Matching strict = confiance 100%
-                        )
-                        candidates.append(candidate)
+            # Extraire la date (format ISO, prendre juste la partie date)
+            date_str = credit_tx["date"]
+            if isinstance(date_str, str):
+                date_only = date_str.split("T")[0] if "T" in date_str else date_str
+            else:
+                # Si c'est un objet datetime, le convertir en string
+                date_only = date_str.strftime("%Y-%m-%d")
+
+            candidate = TransferCandidate(
+                credit_transaction=credit_tx,
+                debit_transaction=debit_tx,
+                amount=float(credit_tx["amount"]),
+                date=date_only,
+                match_confidence=1.0,  # Matching strict = confiance 100%
+            )
+            candidates.append(candidate)
 
         logger.info(f"Found {len(candidates)} transfer candidates")
         return candidates
@@ -270,4 +262,146 @@ async def get_transfers(db: SessionDep):
 
     except Exception as e:
         logger.error(f"Error getting transfers: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Endpoints pour gérer les rejets de paires candidates
+# =============================================================================
+
+
+@router.post("/transfers/candidates/reject", status_code=201)
+async def reject_transfer_candidate(
+    request: RejectedTransferPairCreate, db: SessionDep
+) -> dict[str, Any]:
+    """Rejeter une paire de transactions candidates.
+
+    Marque une paire comme "non-transfert" pour qu'elle n'apparaisse plus
+    dans les candidats détectés automatiquement.
+
+    Args:
+        request: IDs des transactions à rejeter + raison optionnelle
+
+    Returns:
+        Détails de la paire rejetée
+
+    Raises:
+        409: Si la paire a déjà été rejetée
+        500: En cas d'erreur serveur
+    """
+    try:
+        # Ordonner les IDs (le plus petit en premier)
+        tx_id_1 = min(request.credit_transaction_id, request.debit_transaction_id)
+        tx_id_2 = max(request.credit_transaction_id, request.debit_transaction_id)
+
+        # Vérifier si la paire n'a pas déjà été rejetée
+        existing = (
+            db.table("RejectedTransferPairs")
+            .select("*")
+            .eq("transaction_id_1", str(tx_id_1))
+            .eq("transaction_id_2", str(tx_id_2))
+            .execute()
+        )
+
+        if existing.data:
+            raise HTTPException(
+                status_code=409,
+                detail="This pair has already been rejected",
+            )
+
+        # Insérer le rejet
+        current_time = datetime.now().isoformat()
+        rejection_data = {
+            "transaction_id_1": str(tx_id_1),
+            "transaction_id_2": str(tx_id_2),
+            "rejected_at": current_time,
+            "rejected_reason": request.rejected_reason,
+        }
+
+        response = (
+            db.table("RejectedTransferPairs").insert(rejection_data).execute()
+        )
+
+        logger.info(
+            f"Rejected transfer pair: {tx_id_1} <-> {tx_id_2}"
+            f" (reason: {request.rejected_reason or 'None'})"
+        )
+
+        return response.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rejecting transfer candidate: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/transfers/candidates/reject/{tx1_id}/{tx2_id}", status_code=204)
+async def unreject_transfer_candidate(tx1_id: str, tx2_id: str, db: SessionDep):
+    """Annuler le rejet d'une paire de transactions.
+
+    Supprime le rejet pour que la paire réapparaisse dans les candidats.
+
+    Args:
+        tx1_id: ID de la première transaction
+        tx2_id: ID de la deuxième transaction
+
+    Returns:
+        204 No Content si succès
+
+    Raises:
+        404: Si la paire n'a pas été trouvée dans les rejets
+        500: En cas d'erreur serveur
+    """
+    try:
+        # Ordonner les IDs pour la recherche
+        ordered_tx1 = min(tx1_id, tx2_id)
+        ordered_tx2 = max(tx1_id, tx2_id)
+
+        # Supprimer le rejet
+        response = (
+            db.table("RejectedTransferPairs")
+            .delete()
+            .eq("transaction_id_1", ordered_tx1)
+            .eq("transaction_id_2", ordered_tx2)
+            .execute()
+        )
+
+        if not response.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Rejected pair not found",
+            )
+
+        logger.info(f"Unrejected transfer pair: {ordered_tx1} <-> {ordered_tx2}")
+        return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unrejecting transfer candidate: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/transfers/candidates/rejected", response_model=list[dict[str, Any]])
+async def get_rejected_transfer_candidates(db: SessionDep):
+    """Lister toutes les paires de transferts rejetées.
+
+    Returns:
+        Liste des paires rejetées avec leurs détails
+
+    Raises:
+        500: En cas d'erreur serveur
+    """
+    try:
+        response = db.table("RejectedTransferPairs").select("*").execute()
+
+        if not response.data:
+            return []
+
+        logger.info(f"Found {len(response.data)} rejected transfer pairs")
+        return response.data
+
+    except Exception as e:
+        logger.error(f"Error getting rejected transfer candidates: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

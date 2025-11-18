@@ -522,7 +522,7 @@ export default function Home() {
     const months: { year: number; month: number; label: string }[] = [];
     for (let offset = -3; offset <= 2; offset++) {
       const d = new Date(selectedYear, selectedMonth - 1 + offset, 1);
-      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${getMonthName(d.getMonth() + 1).substr(0,3)} ${d.getFullYear()}` });
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${getMonthName(d.getMonth() + 1).substring(0,3)} ${d.getFullYear()}` });
     }
 
     // Initialiser les valeurs à 0
@@ -705,6 +705,15 @@ export default function Home() {
                   <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
                 </svg>
                 Transactions
+              </button>
+              <button
+                onClick={() => router.push('/transfers')}
+                className="px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                </svg>
+                Transferts
               </button>
             </div>
             <div className="flex items-center">

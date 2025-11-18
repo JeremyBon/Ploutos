@@ -11,20 +11,32 @@ import pytest
 
 
 def test_get_candidates_valid_pair(
-    test_client, mock_db, sample_transfer_pair, sample_accounts, mock_supabase_response
+    test_client, mock_db, sample_transfer_pair, mock_supabase_response
 ):
     """Détecte une paire valide de transactions formant un transfert."""
-    # Arrange: Mock la réponse de la DB avec nos transactions
-    transactions_data = [
-        sample_transfer_pair["negative"],
-        sample_transfer_pair["positive"],
+    # Arrange: Mock la réponse RPC avec une paire valide
+    rpc_data = [
+        {
+            "transactionid_1": sample_transfer_pair["negative"]["transactionId"],
+            "description_1": sample_transfer_pair["negative"]["description"],
+            "date_1": sample_transfer_pair["negative"]["date"],
+            "type_1": sample_transfer_pair["negative"]["type"],
+            "amount_1": sample_transfer_pair["negative"]["amount"],
+            "accountid_1": sample_transfer_pair["negative"]["accountId"],
+            "accountname_1": "Banque A",
+            "transactionid_2": sample_transfer_pair["positive"]["transactionId"],
+            "description_2": sample_transfer_pair["positive"]["description"],
+            "date_2": sample_transfer_pair["positive"]["date"],
+            "type_2": sample_transfer_pair["positive"]["type"],
+            "amount_2": sample_transfer_pair["positive"]["amount"],
+            "accountid_2": sample_transfer_pair["positive"]["accountId"],
+            "accountname_2": "Banque B",
+        }
     ]
 
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        transactions_data
-    )
-    mock_db.table.return_value = mock_table
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
 
     # Act: Appel de l'endpoint
     response = test_client.get("/transfers/candidates")
@@ -33,26 +45,26 @@ def test_get_candidates_valid_pair(
     assert response.status_code == 200
     candidates = response.json()
     assert len(candidates) == 1
-    assert candidates[0]["credit_transaction"]["transactionId"] == sample_transfer_pair["negative"]["transactionId"]
-    assert candidates[0]["debit_transaction"]["transactionId"] == sample_transfer_pair["positive"]["transactionId"]
+    assert (
+        candidates[0]["credit_transaction"]["transactionId"]
+        == sample_transfer_pair["negative"]["transactionId"]
+    )
+    assert (
+        candidates[0]["debit_transaction"]["transactionId"]
+        == sample_transfer_pair["positive"]["transactionId"]
+    )
     assert candidates[0]["amount"] == 100.0
     assert candidates[0]["date"] == "2025-01-15"
 
 
 def test_get_candidates_different_amounts(
-    test_client, mock_db, sample_transfer_pair, mock_supabase_response
+    test_client, mock_db, mock_supabase_response
 ):
     """Ignore les paires avec des montants différents."""
-    # Arrange: Modifier le montant d'une transaction
-    negative_tx = sample_transfer_pair["negative"].copy()
-    positive_tx = sample_transfer_pair["positive"].copy()
-    positive_tx["amount"] = 150.0  # Montant différent
-
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        [negative_tx, positive_tx]
-    )
-    mock_db.table.return_value = mock_table
+    # Arrange: La RPC retourne une liste vide car les montants diffèrent
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")
@@ -64,19 +76,13 @@ def test_get_candidates_different_amounts(
 
 
 def test_get_candidates_different_dates(
-    test_client, mock_db, sample_transfer_pair, mock_supabase_response
+    test_client, mock_db, mock_supabase_response
 ):
     """Ignore les paires avec des dates différentes."""
-    # Arrange: Modifier la date d'une transaction
-    negative_tx = sample_transfer_pair["negative"].copy()
-    positive_tx = sample_transfer_pair["positive"].copy()
-    positive_tx["date"] = "2025-01-16T00:00:00"  # Jour différent
-
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        [negative_tx, positive_tx]
-    )
-    mock_db.table.return_value = mock_table
+    # Arrange: La RPC retourne une liste vide car les dates diffèrent
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")
@@ -88,19 +94,13 @@ def test_get_candidates_different_dates(
 
 
 def test_get_candidates_same_type(
-    test_client, mock_db, sample_transfer_pair, mock_supabase_response
+    test_client, mock_db, mock_supabase_response
 ):
     """Ignore les paires avec le même type (credit/credit ou debit/debit)."""
-    # Arrange: Mettre le même type sur les deux transactions
-    negative_tx = sample_transfer_pair["negative"].copy()
-    positive_tx = sample_transfer_pair["positive"].copy()
-    positive_tx["type"] = "credit"  # Même type que negative
-
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        [negative_tx, positive_tx]
-    )
-    mock_db.table.return_value = mock_table
+    # Arrange: La RPC retourne une liste vide car les types sont identiques
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")
@@ -112,20 +112,13 @@ def test_get_candidates_same_type(
 
 
 def test_get_candidates_has_real_slave(
-    test_client, mock_db, sample_transfer_pair, mock_supabase_response
+    test_client, mock_db, mock_supabase_response
 ):
     """Ignore les transactions qui ont déjà un slave vers un compte réel."""
-    # Arrange: Ajouter un slave vers compte réel sur une transaction
-    negative_tx = sample_transfer_pair["negative"].copy()
-    negative_tx["TransactionsSlaves"][0]["Accounts"]["is_real"] = True  # Déjà un transfert
-
-    positive_tx = sample_transfer_pair["positive"]
-
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        [negative_tx, positive_tx]
-    )
-    mock_db.table.return_value = mock_table
+    # Arrange: La RPC filtre déjà les transactions avec slaves réels
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")
@@ -138,10 +131,10 @@ def test_get_candidates_has_real_slave(
 
 def test_get_candidates_empty(test_client, mock_db, mock_supabase_response):
     """Retourne une liste vide quand aucune paire n'est détectée."""
-    # Arrange: Aucune transaction
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response([])
-    mock_db.table.return_value = mock_table
+    # Arrange: La RPC retourne une liste vide
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")

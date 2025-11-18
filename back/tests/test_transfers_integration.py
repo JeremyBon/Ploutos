@@ -13,19 +13,84 @@ def test_multiple_transfer_pairs(
     pair1_negative = sample_transfer_pair["negative"].copy()
     pair1_positive = sample_transfer_pair["positive"].copy()
 
-    pair2_negative = sample_transfer_pair["negative"].copy()
-    pair2_negative["transactionId"] = "ffffffff-ffff-ffff-ffff-ffffffffffff"
-    pair2_negative["TransactionsSlaves"][0]["masterId"] = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    pair2_negative_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    pair2_positive_id = "gggggggg-gggg-gggg-gggg-gggggggggggg"
 
-    pair2_positive = sample_transfer_pair["positive"].copy()
-    pair2_positive["transactionId"] = "gggggggg-gggg-gggg-gggg-gggggggggggg"
-    pair2_positive["TransactionsSlaves"][0]["masterId"] = "gggggggg-gggg-gggg-gggg-gggggggggggg"
+    # La RPC retourne toutes les permutations possibles : 2 credits x 2 debits = 4 paires
+    rpc_data = [
+        # Paire 1: pair1_negative + pair1_positive
+        {
+            "transactionid_1": pair1_negative["transactionId"],
+            "description_1": pair1_negative["description"],
+            "date_1": pair1_negative["date"],
+            "type_1": pair1_negative["type"],
+            "amount_1": pair1_negative["amount"],
+            "accountid_1": pair1_negative["accountId"],
+            "accountname_1": "Banque A",
+            "transactionid_2": pair1_positive["transactionId"],
+            "description_2": pair1_positive["description"],
+            "date_2": pair1_positive["date"],
+            "type_2": pair1_positive["type"],
+            "amount_2": pair1_positive["amount"],
+            "accountid_2": pair1_positive["accountId"],
+            "accountname_2": "Banque B",
+        },
+        # Paire 2: pair1_negative + pair2_positive
+        {
+            "transactionid_1": pair1_negative["transactionId"],
+            "description_1": pair1_negative["description"],
+            "date_1": pair1_negative["date"],
+            "type_1": pair1_negative["type"],
+            "amount_1": pair1_negative["amount"],
+            "accountid_1": pair1_negative["accountId"],
+            "accountname_1": "Banque A",
+            "transactionid_2": pair2_positive_id,
+            "description_2": pair1_positive["description"],
+            "date_2": pair1_positive["date"],
+            "type_2": pair1_positive["type"],
+            "amount_2": pair1_positive["amount"],
+            "accountid_2": pair1_positive["accountId"],
+            "accountname_2": "Banque B",
+        },
+        # Paire 3: pair2_negative + pair1_positive
+        {
+            "transactionid_1": pair2_negative_id,
+            "description_1": pair1_negative["description"],
+            "date_1": pair1_negative["date"],
+            "type_1": pair1_negative["type"],
+            "amount_1": pair1_negative["amount"],
+            "accountid_1": pair1_negative["accountId"],
+            "accountname_1": "Banque A",
+            "transactionid_2": pair1_positive["transactionId"],
+            "description_2": pair1_positive["description"],
+            "date_2": pair1_positive["date"],
+            "type_2": pair1_positive["type"],
+            "amount_2": pair1_positive["amount"],
+            "accountid_2": pair1_positive["accountId"],
+            "accountname_2": "Banque B",
+        },
+        # Paire 4: pair2_negative + pair2_positive
+        {
+            "transactionid_1": pair2_negative_id,
+            "description_1": pair1_negative["description"],
+            "date_1": pair1_negative["date"],
+            "type_1": pair1_negative["type"],
+            "amount_1": pair1_negative["amount"],
+            "accountid_1": pair1_negative["accountId"],
+            "accountname_1": "Banque A",
+            "transactionid_2": pair2_positive_id,
+            "description_2": pair1_positive["description"],
+            "date_2": pair1_positive["date"],
+            "type_2": pair1_positive["type"],
+            "amount_2": pair1_positive["amount"],
+            "accountid_2": pair1_positive["accountId"],
+            "accountname_2": "Banque B",
+        },
+    ]
 
-    mock_table = MagicMock()
-    mock_table.select.return_value.execute.return_value = mock_supabase_response(
-        [pair1_negative, pair1_positive, pair2_negative, pair2_positive]
-    )
-    mock_db.table.return_value = mock_table
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
 
     # Act
     response = test_client.get("/transfers/candidates")
