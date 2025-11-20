@@ -917,7 +917,7 @@ export default function Home() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Dépenses</h3>
                   <div className="text-2xl font-bold text-red-600">
-                    {totalExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    -{totalExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                   </div>
                 </div>
                 
@@ -941,7 +941,7 @@ export default function Home() {
                             </p>
                           </div>
                           <p className="font-semibold text-red-600">
-                            {item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                            -{item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                           </p>
                         </div>
                         
@@ -965,7 +965,7 @@ export default function Home() {
                                     </div>
                                     <div className="text-right">
                                       <p className="font-semibold text-red-600 text-sm">
-                                        {transaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                        -{transaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                                       </p>
                                     </div>
                                   </div>
