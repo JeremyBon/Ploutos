@@ -15,6 +15,12 @@ repos:
         files: ^back/
   - repo: local
     hooks:
+      - id: check-package-lock
+        name: Check package-lock.json exists and is tracked
+        entry: bash -c 'test -f front/package-lock.json && git ls-files --error-unmatch front/package-lock.json >/dev/null 2>&1 || { echo "Error - front/package-lock.json missing or not tracked"; exit 1; }'
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: prettier
         name: Prettier (auto-fix)
         entry: bash -c 'cd front && files=("$@"); files=("${files[@]#front/}"); npx prettier --write "${files[@]}"' --
