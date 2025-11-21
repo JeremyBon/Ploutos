@@ -16,8 +16,8 @@ repos:
   - repo: local
     hooks:
       - id: check-package-files
-        name: Check package.json and package-lock.json are tracked
-        entry: bash -c 'git ls-files --error-unmatch front/package.json front/package-lock.json >/dev/null 2>&1 || { echo "Error - front/package.json or front/package-lock.json missing or not tracked"; exit 1; }'
+        name: Check npm and prettier config files are tracked
+        entry: bash -c 'git ls-files --error-unmatch front/package.json front/package-lock.json front/.prettierrc.json >/dev/null 2>&1 || { echo "Error - Required front config files missing or not tracked"; exit 1; }'
         language: system
         pass_filenames: false
         always_run: true

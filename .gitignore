@@ -8,4 +8,5 @@ data
 *.json
 !front/package.json
 !front/package-lock.json
+!front/.prettierrc.json
 *.ipynb
