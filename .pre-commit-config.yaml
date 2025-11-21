@@ -1,19 +1,24 @@
-default_stages: [commit]
-fail_fast: true 
+default_stages: [pre-commit]
+fail_fast: true
 repos:
   - repo: local
     hooks:
-    - id: black
-      name: Formatting (black)
+    - id: ruff
+      name: Linting Python (ruff)
       types: [python]
-      entry: black .
+      entry: bash -c 'ruff check back/'
       language: system
-      args:
-        - -S
-        - --line-length=88    
-    - id: isort
-      name: Ordering imports (isort)
-      entry: isort --profile black .
+      pass_filenames: false
+    - id: eslint
+      name: Linting Front (ESLint)
+      types_or: [javascript, jsx, ts, tsx]
+      entry: bash -c 'cd front && npm run lint'
       language: system
-      types: [python]
+      pass_filenames: false
+    - id: prettier
+      name: Formatting Front (Prettier)
+      types_or: [javascript, jsx, ts, tsx, json, css]
+      entry: bash -c 'cd front && npm run format:check'
+      language: system
+      pass_filenames: false
 

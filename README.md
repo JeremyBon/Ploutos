@@ -4,12 +4,17 @@ This is ploutos
 
 ## Installation
 
-- Next.js: Instal next.js
-  
+**Backend (Python):**
 ```bash
-    pip install poetry 
-    poetry install
+pip install poetry
+cd back && poetry install
 ```
+
+**Frontend (Next.js):**
+```bash
+cd front && npm install
+```
+
 ## Run the project
 
 In one terminal, run the following command to start the Next.js server:
@@ -32,23 +37,23 @@ http://localhost:8000/docs
 
 ## Tests
 
-Pour lancer les tests du projet backend :
-
 ```bash
 cd back && poetry run pytest
 ```
 
-Options utiles :
+## Code Quality
+
+**Setup:**
 ```bash
-# Avec plus de détails
-cd back && poetry run pytest -v
-
-# Pour un fichier spécifique
-cd back && poetry run pytest src/tests/test_secrets.py
-
-# Avec la couverture de code
-cd back && poetry run pytest --cov=ploutos
+pip install ruff pre-commit
+pre-commit install
 ```
+
+**Checks:**
+- Backend: `ruff check back/`
+- Frontend: `cd front && npm run lint && npm run format:check`
+- Pre-commit: Ruff (Python) + Prettier (JS/TS)
+- CI: Checks automatiques sur chaque push
 
 ##### Commit
 Commit message: Please use [Conventionnal Commits](https://www.conventionalcommits.org/en/v1.0.0/)
