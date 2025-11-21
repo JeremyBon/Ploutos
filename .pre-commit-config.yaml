@@ -17,7 +17,7 @@ repos:
     hooks:
       - id: check-package-files
         name: Check npm and prettier config files are tracked
-        entry: bash -c 'git ls-files --error-unmatch front/package.json front/package-lock.json front/.prettierrc.json >/dev/null 2>&1 || { echo "Error - Required front config files missing or not tracked"; exit 1; }'
+        entry: bash -c 'git ls-files --error-unmatch front/package.json front/package-lock.json front/.prettierrc.json front/tsconfig.json >/dev/null 2>&1 || { echo "Error - Required front config files missing or not tracked"; exit 1; }'
         language: system
         pass_filenames: false
         always_run: true
