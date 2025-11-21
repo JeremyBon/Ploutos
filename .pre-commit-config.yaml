@@ -7,6 +7,10 @@ repos:
       - id: ruff
         args: [--fix]
         files: ^back/
+      - id: ruff
+        name: ruff-check
+        args: []
+        files: ^back/
       - id: ruff-format
         files: ^back/
   - repo: local
