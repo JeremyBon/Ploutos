@@ -1,24 +1,28 @@
 default_stages: [pre-commit]
-fail_fast: true
+fail_fast: false
 repos:
-  - repo: local
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
     hooks:
-    - id: ruff
-      name: Linting Python (ruff)
-      types: [python]
-      entry: bash -c 'ruff check back/'
-      language: system
-      pass_filenames: false
-    - id: eslint
-      name: Linting Front (ESLint)
-      types_or: [javascript, jsx, ts, tsx]
-      entry: bash -c 'cd front && npm run lint'
-      language: system
-      pass_filenames: false
-    - id: prettier
-      name: Formatting Front (Prettier)
-      types_or: [javascript, jsx, ts, tsx, json, css]
-      entry: bash -c 'cd front && npm run format:check'
-      language: system
-      pass_filenames: false
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^back/
+      - id: ruff-format
+        files: ^back/
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.17.0
+    hooks:
+      - id: eslint
+        files: ^front/.*\.[jt]sx?$
+        types: [file]
+        args: [--fix]
+        additional_dependencies:
+          - eslint@9.17.0
+          - eslint-config-next@15.1.8
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: ^front/
+        types_or: [javascript, jsx, ts, tsx, json, css]
 
