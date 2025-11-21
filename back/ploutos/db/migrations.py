@@ -43,7 +43,7 @@ def create_transactions(df:pd.DataFrame,) -> tuple[list[Transaction], list[Trans
             created_at=date,
             updated_at=date,
             type='debit' if row["type"] == 'credit' else 'credit',
-            amount=-row["amount"],
+            amount=row["amount"],
             date=pd.Timestamp(row["Date"]),
             accountId=row["slave_account"],
             masterId=row['masterId'],

@@ -1,5 +1,5 @@
 import uvicorn
-from ploutos.api.routers import accounts, test, transactions
+from ploutos.api.routers import accounts, test, transactions, transfers
 from ploutos.config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(test.router, tags=["test"])
 app.include_router(accounts.router, tags=["accounts"])
 app.include_router(transactions.router, tags=["transactions"])
+app.include_router(transfers.router, tags=["transfers"])
 
 
 @app.get("/")

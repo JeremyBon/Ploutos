@@ -182,17 +182,13 @@ export default function Home() {
           const amount = slave.amount;
           const type = slave.type;
 
-          // 🔍 LOGS DE DEBUG
-          console.log(`[SLAVE] Account: ${accountName}, Type: ${type}, Amount: ${amount}, Date: ${slave.date}`);
-
           // Logique de classification basée sur le type :
           // - type "credit" = dépenses (sortie d'argent)
           // - type "debit" = revenus (entrée d'argent)
           const isRevenue = type.toLowerCase() === 'debit'; // Débits = revenus
           const isExpense = type.toLowerCase() === 'credit'; // Crédits = dépenses
-          
+
           if (isRevenue) {
-            console.log(`  ✅ [REVENUE] Adding ${amount}€ to ${accountName}`);
             const targetMap = revenuesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
@@ -211,7 +207,6 @@ export default function Home() {
               });
             }
           } else if (isExpense) {
-            console.log(`  💸 [EXPENSE] Adding ${amount}€ to ${accountName}`);
             const targetMap = expensesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
@@ -522,7 +517,7 @@ export default function Home() {
     const months: { year: number; month: number; label: string }[] = [];
     for (let offset = -3; offset <= 2; offset++) {
       const d = new Date(selectedYear, selectedMonth - 1 + offset, 1);
-      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${getMonthName(d.getMonth() + 1).substr(0,3)} ${d.getFullYear()}` });
+      months.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${getMonthName(d.getMonth() + 1).substring(0,3)} ${d.getFullYear()}` });
     }
 
     // Initialiser les valeurs à 0
@@ -571,6 +566,25 @@ export default function Home() {
 
     // Accumuler les deltas pour les comptes réels
     transactions.forEach(t => {
+      // 1. Traiter la transaction master si elle est sur un compte réel
+      const masterAccount = accounts.find(acc => acc.account_id === t.accountId);
+      if (masterAccount && masterAccount.is_real) {
+        const td = new Date(t.date);
+        const ty = td.getFullYear();
+        const tm = td.getMonth() + 1;
+        const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
+          const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
+          return d.getFullYear() === ty && d.getMonth() + 1 === tm;
+        });
+        if (idx !== -1) {
+          const isRevenue = t.type.toLowerCase() === 'debit';
+          const isExpense = t.type.toLowerCase() === 'credit';
+          const delta = isRevenue ? t.amount : (isExpense ? -t.amount : 0);
+          realDelta[idx] += delta;
+        }
+      }
+
+      // 2. Traiter les slaves sur des comptes réels
       t.TransactionsSlaves.forEach(slave => {
         if (slave.slaveAccountIsReal === true) {
           const sd = new Date(slave.date);
@@ -596,7 +610,7 @@ export default function Home() {
     const baseline = totalAssets - lastCum; // align last point with current totalAssets
     const patrimony = cumulative.map(c => baseline + c);
     return { labels, patrimony };
-  }, [transactions, monthlyRangeSeries, selectedMonth, selectedYear, totalAssets]);
+  }, [transactions, monthlyRangeSeries, selectedMonth, selectedYear, totalAssets, accounts]);
 
   const patrimonyChartData = useMemo(() => ({
     labels: patrimonySeries.labels,
@@ -679,6 +693,33 @@ export default function Home() {
     }
   }), []);
 
+  const patrimonyChartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw || 0;
+            return `Patrimoine: ${value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 0, autoSkip: false } },
+      y: {
+        beginAtZero: false,
+        ticks: {
+          callback: function(value: any) {
+            return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+          }
+        }
+      }
+    }
+  }), []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Navigation Bar */}
@@ -705,6 +746,15 @@ export default function Home() {
                   <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
                 </svg>
                 Transactions
+              </button>
+              <button
+                onClick={() => router.push('/transfers')}
+                className="px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
+                </svg>
+                Transferts
               </button>
             </div>
             <div className="flex items-center">
@@ -908,7 +958,7 @@ export default function Home() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">Dépenses</h3>
                   <div className="text-2xl font-bold text-red-600">
-                    {totalExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    -{totalExpenses.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                   </div>
                 </div>
                 
@@ -932,7 +982,7 @@ export default function Home() {
                             </p>
                           </div>
                           <p className="font-semibold text-red-600">
-                            {item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                            -{item.total_amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                           </p>
                         </div>
                         
@@ -956,7 +1006,7 @@ export default function Home() {
                                     </div>
                                     <div className="text-right">
                                       <p className="font-semibold text-red-600 text-sm">
-                                        {transaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                        -{transaction.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                                       </p>
                                     </div>
                                   </div>
@@ -1025,7 +1075,7 @@ export default function Home() {
               </div>
               <div style={{ width: '100%', height: 260 }}>
                 <div className="w-full h-full">
-                  <Line data={patrimonyChartData} options={{...chartOptions, plugins: {...chartOptions.plugins, legend: { display: false }}}} />
+                  <Line data={patrimonyChartData} options={patrimonyChartOptions} />
                 </div>
               </div>
             </div>
