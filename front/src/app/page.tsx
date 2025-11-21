@@ -571,6 +571,25 @@ export default function Home() {
 
     // Accumuler les deltas pour les comptes réels
     transactions.forEach(t => {
+      // 1. Traiter la transaction master si elle est sur un compte réel
+      const masterAccount = accounts.find(acc => acc.account_id === t.accountId);
+      if (masterAccount && masterAccount.is_real) {
+        const td = new Date(t.date);
+        const ty = td.getFullYear();
+        const tm = td.getMonth() + 1;
+        const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
+          const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
+          return d.getFullYear() === ty && d.getMonth() + 1 === tm;
+        });
+        if (idx !== -1) {
+          const isRevenue = t.type.toLowerCase() === 'debit';
+          const isExpense = t.type.toLowerCase() === 'credit';
+          const delta = isRevenue ? t.amount : (isExpense ? -t.amount : 0);
+          realDelta[idx] += delta;
+        }
+      }
+
+      // 2. Traiter les slaves sur des comptes réels
       t.TransactionsSlaves.forEach(slave => {
         if (slave.slaveAccountIsReal === true) {
           const sd = new Date(slave.date);
@@ -596,7 +615,7 @@ export default function Home() {
     const baseline = totalAssets - lastCum; // align last point with current totalAssets
     const patrimony = cumulative.map(c => baseline + c);
     return { labels, patrimony };
-  }, [transactions, monthlyRangeSeries, selectedMonth, selectedYear, totalAssets]);
+  }, [transactions, monthlyRangeSeries, selectedMonth, selectedYear, totalAssets, accounts]);
 
   const patrimonyChartData = useMemo(() => ({
     labels: patrimonySeries.labels,
@@ -676,6 +695,33 @@ export default function Home() {
     scales: {
       x: { ticks: { maxRotation: 0, autoSkip: false } },
       y: { beginAtZero: true }
+    }
+  }), []);
+
+  const patrimonyChartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw || 0;
+            return `Patrimoine: ${value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { maxRotation: 0, autoSkip: false } },
+      y: {
+        beginAtZero: false,
+        ticks: {
+          callback: function(value: any) {
+            return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+          }
+        }
+      }
     }
   }), []);
 
@@ -1034,7 +1080,7 @@ export default function Home() {
               </div>
               <div style={{ width: '100%', height: 260 }}>
                 <div className="w-full h-full">
-                  <Line data={patrimonyChartData} options={{...chartOptions, plugins: {...chartOptions.plugins, legend: { display: false }}}} />
+                  <Line data={patrimonyChartData} options={patrimonyChartOptions} />
                 </div>
               </div>
             </div>
