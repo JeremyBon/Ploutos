@@ -182,17 +182,13 @@ export default function Home() {
           const amount = slave.amount;
           const type = slave.type;
 
-          // 🔍 LOGS DE DEBUG
-          console.log(`[SLAVE] Account: ${accountName}, Type: ${type}, Amount: ${amount}, Date: ${slave.date}`);
-
           // Logique de classification basée sur le type :
           // - type "credit" = dépenses (sortie d'argent)
           // - type "debit" = revenus (entrée d'argent)
           const isRevenue = type.toLowerCase() === 'debit'; // Débits = revenus
           const isExpense = type.toLowerCase() === 'credit'; // Crédits = dépenses
-          
+
           if (isRevenue) {
-            console.log(`  ✅ [REVENUE] Adding ${amount}€ to ${accountName}`);
             const targetMap = revenuesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
@@ -211,7 +207,6 @@ export default function Home() {
               });
             }
           } else if (isExpense) {
-            console.log(`  💸 [EXPENSE] Adding ${amount}€ to ${accountName}`);
             const targetMap = expensesMap;
             if (targetMap.has(accountId)) {
               const existing = targetMap.get(accountId)!;
