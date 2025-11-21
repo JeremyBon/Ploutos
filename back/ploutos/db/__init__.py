@@ -8,4 +8,4 @@ get_db: Client = create_client(
 )
 
 # Export du client pour qu'il soit accessible via `from ploutos.db import client`
-__all__ = ['get_db']
+__all__ = ["get_db"]

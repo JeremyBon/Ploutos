@@ -10,6 +10,7 @@ def get_db_dependency():
     de mocker get_db dans les tests.
     """
     from ploutos.db import get_db
+
     return get_db
 
 

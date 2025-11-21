@@ -124,7 +124,7 @@ async def get_current_amounts(db: SessionDep):
             "get_total_amount_by_account_ids",
             {
                 "account_ids": [
-                    account['accountId'] for account in accounts_response.data
+                    account["accountId"] for account in accounts_response.data
                 ]
             },
         )
@@ -133,10 +133,10 @@ async def get_current_amounts(db: SessionDep):
     )
 
     amounts = {
-        account['accountId']: account['total_amount'] for account in amount_response
+        account["accountId"]: account["total_amount"] for account in amount_response
     }
     max_dates = {
-        account['accountId']: account['max_date'] for account in amount_response
+        account["accountId"]: account["max_date"] for account in amount_response
     }
 
     return [
@@ -148,7 +148,7 @@ async def get_current_amounts(db: SessionDep):
             current_amount=amounts.get(account["accountId"], 0)
             + account["original_amount"],
             is_real=account["is_real"],
-            max_date=max_dates.get(account["accountId"], None)
+            max_date=max_dates.get(account["accountId"], None),
         )
         for account in accounts_response.data
     ]

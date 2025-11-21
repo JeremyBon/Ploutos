@@ -4,6 +4,7 @@ from ploutos.config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+
 settings = get_settings()
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -4,7 +4,9 @@ import base64
 from ploutos.config.settings import get_settings
 from ploutos.db import get_db
 from ploutos.db.models import AccountsSecretsCreate
+
 settings = get_settings()
+
 
 def encrypt(text: str) -> str:
     """
@@ -19,6 +21,7 @@ def encrypt(text: str) -> str:
     combined = cipher.nonce + tag + ciphertext
 
     return base64.b64encode(combined).decode()
+
 
 def decrypt(encoded: str) -> str:
     """
@@ -35,18 +38,25 @@ def decrypt(encoded: str) -> str:
 
     return plaintext.decode()
 
-def save_secret(account:AccountsSecretsCreate):
+
+def save_secret(account: AccountsSecretsCreate):
     """Sauvegarde le secret chiffré dans la base de données AccountSecrets."""
     account.secretId = encrypt(account.secretId)
     get_db.table("AccountSecrets").delete().eq("accountId", account.accountId).execute()
     get_db.table("AccountSecrets").insert(account.model_dump()).execute()
 
+
 def get_secret(accountId: str) -> tuple[str, str]:
     """Récupère et déchiffre le secret pour un accountId donné. Renvoie (secret, bankId) ou None si non trouvé."""
-    data = get_db.table("AccountSecrets").select("secretId,bankId").eq("accountId", accountId).execute()
+    data = (
+        get_db.table("AccountSecrets")
+        .select("secretId,bankId")
+        .eq("accountId", accountId)
+        .execute()
+    )
     if data.data:
-        encrypted_secret = data.data[0]['secretId']
+        encrypted_secret = data.data[0]["secretId"]
         decrypted_secret = decrypt(encrypted_secret)
-        return decrypted_secret, data.data[0]['bankId']
+        return decrypted_secret, data.data[0]["bankId"]
     else:
         raise ValueError(f"No secret found for account ID: {accountId}")

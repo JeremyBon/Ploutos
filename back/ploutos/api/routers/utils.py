@@ -14,9 +14,9 @@ def extract_nested_field(
         if nested_key in item and item[nested_key]:
             for i, field_key in enumerate(field_keys):
                 if new_keys:
-                    item[new_keys[i]] = item[nested_key].get(field_key, '')
+                    item[new_keys[i]] = item[nested_key].get(field_key, "")
                 else:
-                    item[field_key] = item[nested_key].get(field_key, '')
+                    item[field_key] = item[nested_key].get(field_key, "")
             del item[nested_key]
 
     return data

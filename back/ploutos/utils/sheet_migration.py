@@ -43,7 +43,7 @@ class SheetMigration:
         data = self.get_range("Paramètres", "I1:K25")
         df_account = pd.DataFrame(data[1:], columns=data[0])
         df_account = df_account[
-            (df_account["Compte"] != "") & (df_account["Compte"].isna() == False)
+            (df_account["Compte"] != "") & ~df_account["Compte"].isna()
         ]
         df_account["Fin Janvier 2023"] = df_account["Fin Janvier 2023"].apply(
             lambda x: float(x.replace(",", ".") if x != "" else 0)
@@ -69,15 +69,15 @@ class SheetMigration:
         print(f"Nombre de lignes: {len(df)}")
 
     def clean_data(self, df, drop_columns):
-        df = df[~(df["Date"] == "") & ~(df['Date'].isna())]
+        df = df[~(df["Date"] == "") & ~(df["Date"].isna())]
         df["Date"] = pd.to_datetime(df["Date"], format="%d/%m/%Y")
         df = df.drop(columns=drop_columns)
         df["Montant"] = df["Montant"].apply(
             lambda x: float(
-                x.replace('€', '')
-                .replace(',', '.')
-                .replace(' ', '')
-                .replace('\u202f', '')
+                x.replace("€", "")
+                .replace(",", ".")
+                .replace(" ", "")
+                .replace("\u202f", "")
             )
         )
         return df
