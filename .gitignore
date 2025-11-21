@@ -6,4 +6,8 @@ __pycache__/
 
 data
 *.json
+!front/package.json
+!front/package-lock.json
+!front/.prettierrc.json
+!front/tsconfig.json
 *.ipynb

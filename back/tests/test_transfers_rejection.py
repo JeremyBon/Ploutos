@@ -1,4 +1,5 @@
 """Tests pour le rejet de paires de transferts candidates."""
+
 from unittest.mock import MagicMock
 
 
@@ -10,8 +11,8 @@ def test_reject_transfer_candidate_success(
     mock_table = MagicMock()
 
     # Premier appel: vérifier si déjà rejeté (non)
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([])
+    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_supabase_response(
+        []
     )
 
     # Deuxième appel: insérer le rejet
@@ -45,9 +46,7 @@ def test_reject_transfer_candidate_success(
     assert result["rejected_reason"] == "Not a real transfer"
 
 
-def test_reject_hides_from_candidates(
-    test_client, mock_db, mock_supabase_response
-):
+def test_reject_hides_from_candidates(test_client, mock_db, mock_supabase_response):
     """Une paire rejetée n'apparaît plus dans les candidats."""
     # Arrange: La RPC retourne une liste vide (paire filtrée)
     mock_rpc = MagicMock()
@@ -74,8 +73,8 @@ def test_unreject_transfer_candidate(
         "transaction_id_1": sample_transfer_pair["negative"]["transactionId"],
         "transaction_id_2": sample_transfer_pair["positive"]["transactionId"],
     }
-    mock_table.delete.return_value.eq.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([deleted_pair])
+    mock_table.delete.return_value.eq.return_value.eq.return_value.execute.return_value = mock_supabase_response(
+        [deleted_pair]
     )
     mock_db.table.return_value = mock_table
 
@@ -140,8 +139,8 @@ def test_reject_duplicate_returns_conflict(
         "rejected_at": "2025-01-15T10:00:00",
         "rejected_reason": "Already rejected",
     }
-    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([existing_rejection])
+    mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = mock_supabase_response(
+        [existing_rejection]
     )
     mock_db.table.return_value = mock_table
 
@@ -160,14 +159,12 @@ def test_reject_duplicate_returns_conflict(
     assert "already been rejected" in response.json()["detail"]
 
 
-def test_unreject_not_found_returns_404(
-    test_client, mock_db, mock_supabase_response
-):
+def test_unreject_not_found_returns_404(test_client, mock_db, mock_supabase_response):
     """Annuler un rejet inexistant retourne 404."""
     # Arrange: Mock la suppression (rien trouvé)
     mock_table = MagicMock()
-    mock_table.delete.return_value.eq.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([])
+    mock_table.delete.return_value.eq.return_value.eq.return_value.execute.return_value = mock_supabase_response(
+        []
     )
     mock_db.table.return_value = mock_table
 

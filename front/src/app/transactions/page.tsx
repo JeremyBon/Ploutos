@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 
 interface Account {
   accountId: string;
@@ -40,89 +40,106 @@ interface Transaction {
   masterAccountName: string;
 }
 
-const API_URL = 'http://localhost:8000';
+const API_URL = "http://localhost:8000";
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>('2023-04');
-  const [selectedAccount, setSelectedAccount] = useState<string>('');
-  const [dateFilter, setDateFilter] = useState<'month' | 'custom' | 'all'>('month');
-  const [customDateFrom, setCustomDateFrom] = useState<string>('');
-  const [customDateTo, setCustomDateTo] = useState<string>('');
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("2023-04");
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [dateFilter, setDateFilter] = useState<"month" | "custom" | "all">(
+    "month"
+  );
+  const [customDateFrom, setCustomDateFrom] = useState<string>("");
+  const [customDateTo, setCustomDateTo] = useState<string>("");
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editedTransaction, setEditedTransaction] = useState<Transaction | null>(null);
+  const [editedTransaction, setEditedTransaction] =
+    useState<Transaction | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/accounts`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       setAccounts(data);
     } catch (error) {
-      console.error('Error fetching accounts:', error);
+      console.error("Error fetching accounts:", error);
     }
   }, []);
 
   const fetchTransactions = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      
+
       // Gestion du filtre de date
-      if (dateFilter === 'month' && selectedMonth) {
-        const [year, month] = selectedMonth.split('-');
+      if (dateFilter === "month" && selectedMonth) {
+        const [year, month] = selectedMonth.split("-");
         const startDate = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const endDate = `${year}-${month}-${lastDay}`;
-        params.append('date_from', startDate);
-        params.append('date_to', endDate);
-      } else if (dateFilter === 'custom' && customDateFrom && customDateTo) {
-        params.append('date_from', customDateFrom);
-        params.append('date_to', customDateTo);
+        params.append("date_from", startDate);
+        params.append("date_to", endDate);
+      } else if (dateFilter === "custom" && customDateFrom && customDateTo) {
+        params.append("date_from", customDateFrom);
+        params.append("date_to", customDateTo);
       }
       // Si dateFilter === 'all', on n'ajoute aucun paramètre de date
 
       if (selectedAccount) {
-        params.append('account_id', selectedAccount);
+        params.append("account_id", selectedAccount);
       }
 
-      const response = await fetch(`${API_URL}/transactions?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      });
-      
+      const response = await fetch(
+        `${API_URL}/transactions?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        throw new Error(
+          `HTTP error! status: ${response.status}, message: ${errorText}`
+        );
       }
-      
+
       const data = await response.json();
-      console.log('Transactions data:', data);
+      console.log("Transactions data:", data);
       setTransactions(data);
       setError(null);
     } catch (error) {
-      setError(`Unable to load transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(
+        `Unable to load transactions: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedAccount, dateFilter, customDateFrom, customDateTo]);
+  }, [
+    selectedMonth,
+    selectedAccount,
+    dateFilter,
+    customDateFrom,
+    customDateTo,
+  ]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -130,7 +147,7 @@ export default function Transactions() {
         await fetchAccounts();
         await fetchTransactions();
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error("Error loading data:", error);
       }
     };
     loadData();
@@ -145,7 +162,7 @@ export default function Transactions() {
 
   const handleTransactionChange = (field: keyof Transaction, value: string) => {
     if (!editedTransaction) return;
-    setEditedTransaction({...editedTransaction, [field]: value});
+    setEditedTransaction({ ...editedTransaction, [field]: value });
     setHasChanges(true);
   };
 
@@ -159,28 +176,37 @@ export default function Transactions() {
     if (!editedTransaction) return;
 
     try {
-      const response = await fetch(`${API_URL}/transactions/${editedTransaction.transactionId}`, {
-        method: 'PUT',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(editedTransaction),
-      });
+      const response = await fetch(
+        `${API_URL}/transactions/${editedTransaction.transactionId}`,
+        {
+          method: "PUT",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(editedTransaction),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to update transaction');
+        throw new Error("Failed to update transaction");
       }
 
       // Update the transaction in the local state
-      setTransactions(transactions.map(t => 
-        t.transactionId === editedTransaction.transactionId ? editedTransaction : t
-      ));
-      
+      setTransactions(
+        transactions.map((t) =>
+          t.transactionId === editedTransaction.transactionId
+            ? editedTransaction
+            : t
+        )
+      );
+
       setSelectedTransaction(editedTransaction);
       setIsModalOpen(false);
     } catch (error) {
-      setError(`Failed to update transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setError(
+        `Failed to update transaction: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
   };
 
@@ -200,12 +226,21 @@ export default function Transactions() {
               <h1 className="text-2xl font-bold text-blue-600">Ploutos</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Link 
+              <Link
                 href="/"
                 className="px-4 py-2 rounded-lg text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clipRule="evenodd"
+                  />
                 </svg>
                 Retour
               </Link>
@@ -220,7 +255,10 @@ export default function Transactions() {
           <h2 className="text-3xl font-bold text-gray-800">Transactions</h2>
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
-              <label htmlFor="account" className="text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="account"
+                className="text-sm font-medium text-gray-700 mb-1"
+              >
                 Compte
               </label>
               <select
@@ -237,7 +275,7 @@ export default function Transactions() {
                 ))}
               </select>
             </div>
-            
+
             <div className="flex flex-col">
               <label className="text-sm font-medium text-gray-700 mb-1">
                 Période
@@ -245,15 +283,17 @@ export default function Transactions() {
               <div className="flex gap-2">
                 <select
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value as 'month' | 'custom' | 'all')}
+                  onChange={(e) =>
+                    setDateFilter(e.target.value as "month" | "custom" | "all")
+                  }
                   className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="month">Par mois</option>
                   <option value="custom">Période personnalisée</option>
                   <option value="all">Toutes les dates</option>
                 </select>
-                
-                {dateFilter === 'month' && (
+
+                {dateFilter === "month" && (
                   <input
                     type="month"
                     value={selectedMonth}
@@ -261,8 +301,8 @@ export default function Transactions() {
                     className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 )}
-                
-                {dateFilter === 'custom' && (
+
+                {dateFilter === "custom" && (
                   <>
                     <input
                       type="date"
@@ -309,40 +349,47 @@ export default function Transactions() {
                         {transaction.description}
                       </span>
                       <p className="text-xs text-gray-500">
-                        {new Date(transaction.date).toLocaleDateString('fr-FR', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
+                        {new Date(transaction.date).toLocaleDateString(
+                          "fr-FR",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          }
+                        )}
                       </p>
                     </div>
                     <div className="flex-1 text-center min-w-[120px]">
                       <div className="flex items-center justify-center gap-2">
                         <p className="text-sm text-gray-800">
-                          {transaction.masterAccountName || 'Compte inconnu'}
+                          {transaction.masterAccountName || "Compte inconnu"}
                         </p>
-                        {transaction.TransactionsSlaves && transaction.TransactionsSlaves.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {transaction.TransactionsSlaves.map((slave) => (
-                              <div 
-                                key={slave.slaveId} 
-                                className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap"
-                              >
-                                {slave.slaveAccountName || '⚠️ Compte non récupéré'}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {transaction.TransactionsSlaves &&
+                          transaction.TransactionsSlaves.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {transaction.TransactionsSlaves.map((slave) => (
+                                <div
+                                  key={slave.slaveId}
+                                  className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap"
+                                >
+                                  {slave.slaveAccountName ||
+                                    "⚠️ Compte non récupéré"}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     </div>
                     <div className="flex-1 text-right min-w-[100px]">
-                      <p className={`text-base font-semibold ${
-                        transaction.type === 'debit' 
-                          ? 'text-red-600' 
-                          : transaction.type === 'credit' 
-                            ? 'text-green-600' 
-                            : 'text-gray-800'
-                      }`}>
+                      <p
+                        className={`text-base font-semibold ${
+                          transaction.type === "debit"
+                            ? "text-red-600"
+                            : transaction.type === "credit"
+                              ? "text-green-600"
+                              : "text-gray-800"
+                        }`}
+                      >
                         {transaction.amount}€
                       </p>
                     </div>
@@ -356,11 +403,11 @@ export default function Transactions() {
 
       {/* Modal */}
       {isModalOpen && selectedTransaction && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
           onClick={handleClose}
         >
-          <div 
+          <div
             className="bg-white rounded-lg p-6 max-w-2xl w-full"
             onClick={(e) => e.stopPropagation()}
           >
@@ -372,28 +419,47 @@ export default function Transactions() {
                 onClick={handleClose}
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Description
+                </label>
                 <input
                   type="text"
                   value={editedTransaction?.description}
-                  onChange={(e) => handleTransactionChange('description', e.target.value)}
+                  onChange={(e) =>
+                    handleTransactionChange("description", e.target.value)
+                  }
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Date</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Date
+                </label>
                 <input
                   type="date"
-                  value={editedTransaction?.date.split('T')[0]}
-                  onChange={(e) => handleTransactionChange('date', e.target.value)}
+                  value={editedTransaction?.date.split("T")[0]}
+                  onChange={(e) =>
+                    handleTransactionChange("date", e.target.value)
+                  }
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
@@ -408,39 +474,54 @@ export default function Transactions() {
               <div>
                 <p className="text-sm font-medium text-gray-500">Compte</p>
                 <p className="mt-1">
-                  {selectedTransaction.masterAccountName || '⚠️ Account not retrieved'}
+                  {selectedTransaction.masterAccountName ||
+                    "⚠️ Account not retrieved"}
                 </p>
               </div>
-              {selectedTransaction.TransactionsSlaves && selectedTransaction.TransactionsSlaves.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-500 mb-2">Transactions associées</p>
-                  <div className="space-y-2">
-                    {selectedTransaction.TransactionsSlaves.map((slave) => (
-                      <div key={slave.slaveId} className="bg-gray-50 p-3 rounded-md">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">
-                              {selectedTransaction.masterAccountName || '⚠️ Account not retrieved'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(slave.date).toLocaleDateString('fr-FR', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
+              {selectedTransaction.TransactionsSlaves &&
+                selectedTransaction.TransactionsSlaves.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-2">
+                      Transactions associées
+                    </p>
+                    <div className="space-y-2">
+                      {selectedTransaction.TransactionsSlaves.map((slave) => (
+                        <div
+                          key={slave.slaveId}
+                          className="bg-gray-50 p-3 rounded-md"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">
+                                {selectedTransaction.masterAccountName ||
+                                  "⚠️ Account not retrieved"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(slave.date).toLocaleDateString(
+                                  "fr-FR",
+                                  {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </p>
+                            </div>
+                            <p
+                              className={`text-sm font-semibold ${
+                                slave.type === "debit"
+                                  ? "text-red-600"
+                                  : "text-green-600"
+                              }`}
+                            >
+                              {slave.amount}€
                             </p>
                           </div>
-                          <p className={`text-sm font-semibold ${
-                            slave.type === 'debit' ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {slave.amount}€
-                          </p>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               <div className="flex justify-end space-x-3 mt-6">
                 {hasChanges && (
                   <button
@@ -463,4 +544,4 @@ export default function Transactions() {
       )}
     </div>
   );
-} 
+}

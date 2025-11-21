@@ -1,4 +1,3 @@
-
 from typing import Optional
 from uuid import uuid4
 from ploutos.utils.secrets import get_secret
@@ -12,17 +11,14 @@ from nordigen.types.types import Requisition
 settings = get_settings()
 
 
-
-
-
 client = NordigenClient(
     secret_id=settings.GO_CARDLESS_SECRET_ID.get_secret_value(),
-    secret_key=settings.GO_CARDLESS_SECRET_KEY.get_secret_value()
+    secret_key=settings.GO_CARDLESS_SECRET_KEY.get_secret_value(),
 )
 client.generate_token()
 
 
-def connect_to_bank(bank_id: str,requisition_id:Optional[str]) -> Requisition:
+def connect_to_bank(bank_id: str, requisition_id: Optional[str]) -> Requisition:
     if requisition_id is None:
         requisition_id = client.initialize_session(
             # institution id
@@ -53,14 +49,16 @@ class BankApi:
         self.api = client.account_api(id=secret)
         try:
             self.metadata = self.api.get_metadata()
-            if self.metadata is None or self.metadata.get('status') != 'READY':
+            if self.metadata is None or self.metadata.get("status") != "READY":
                 print(f"Account {self.account_name} is not enabled")
                 print(connect_to_bank(self.account_name, requisition_id=None))
                 raise ValueError(f"Account {self.account_name} is not enabled")
 
             print(f"Successfully connected to {self.account_name}")
         except Exception as e:
-            logger.error(f"Error getting metadata for {self.account_name} with id {secret}: {e}")
+            logger.error(
+                f"Error getting metadata for {self.account_name} with id {secret}: {e}"
+            )
             raise e
 
     def __getattr__(self, name):
@@ -72,7 +70,7 @@ class BankApi:
 
     def get_balances(self):
         if self.balances is None:
-            self.balances = self.api.get_balances()['balances']
+            self.balances = self.api.get_balances()["balances"]
 
         # Assert that balances is not None after assignment
         assert self.balances is not None, "Balances should be loaded"
@@ -85,18 +83,20 @@ class BankApi:
                 if "closingBooked" in balance["balanceType"]:
                     return balance["balanceAmount"]["amount"]
             raise ValueError(f"Multiple balances found for {self.account_name}")
-        return self.balances[0]['balanceAmount']['amount']
+        return self.balances[0]["balanceAmount"]["amount"]
 
     def get_transactions(
         self,
         date_from: Optional[str] = None,
         date_to: Optional[str] = None,
         raw: bool = False,
-    ) ->pd.DataFrame | dict:
+    ) -> pd.DataFrame | dict:
         if self.transactions is None:
-            self.transactions = self.api.get_transactions(date_from=date_from, date_to=date_to)
+            self.transactions = self.api.get_transactions(
+                date_from=date_from, date_to=date_to
+            )
         if not raw:
-            return transactions_to_df(self.transactions['transactions'])
+            return transactions_to_df(self.transactions["transactions"])
         return self.transactions
 
 
@@ -143,9 +143,9 @@ def process(transactions: dict):
         )
         if not df_transactions["Date"].equals(df_transactions["Date valeur"]):
             print("Date and Date valeur are not the same")
-    if int(df_transactions['Description'].apply(len).max()) > 1:
+    if int(df_transactions["Description"].apply(len).max()) > 1:
         print("Error with length of description (Max length is greater than 1)")
-    if int(df_transactions['Description'].apply(len).min()) == 0:
+    if int(df_transactions["Description"].apply(len).min()) == 0:
         print("Error with length of description (Min length is 0)")
     df_transactions["Description"] = df_transactions["Description"].apply(
         lambda x: ", ".join(x)

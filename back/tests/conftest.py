@@ -1,8 +1,7 @@
 """Fixtures partagées pour les tests."""
-from datetime import datetime
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,6 +20,7 @@ def test_client(mock_db, monkeypatch):
     """Client de test FastAPI avec mock DB."""
     # Patcher directement l'objet get_db dans le module ploutos.db
     import ploutos.db
+
     monkeypatch.setattr(ploutos.db, "get_db", mock_db)
 
     # Créer le client de test
@@ -96,10 +96,7 @@ def sample_transfer_pair(sample_accounts, sample_unknown_account):
                     "date": "2025-01-15T00:00:00",
                     "accountId": sample_unknown_account["accountId"],
                     "masterId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                    "Accounts": {
-                        "is_real": False,
-                        "name": "Unknown"
-                    }
+                    "Accounts": {"is_real": False, "name": "Unknown"},
                 }
             ],
         },
@@ -120,10 +117,7 @@ def sample_transfer_pair(sample_accounts, sample_unknown_account):
                     "date": "2025-01-15T00:00:00",
                     "accountId": sample_unknown_account["accountId"],
                     "masterId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-                    "Accounts": {
-                        "is_real": False,
-                        "name": "Unknown"
-                    }
+                    "Accounts": {"is_real": False, "name": "Unknown"},
                 }
             ],
         },
@@ -157,8 +151,8 @@ def sample_merged_transaction(sample_accounts):
                 "masterId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
                 "Accounts": {
                     "is_real": True,  # Compte réel = indicateur de transfert
-                    "name": "Banque B"
-                }
+                    "name": "Banque B",
+                },
             }
         ],
     }

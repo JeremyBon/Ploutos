@@ -3,11 +3,11 @@ from ploutos.db.models import Transaction, TransactionSlave
 import pandas as pd
 from tqdm import tqdm
 from datetime import datetime
-from uuid import uuid4
 
 
-
-def create_transactions(df:pd.DataFrame,) -> tuple[list[Transaction], list[TransactionSlave]]:
+def create_transactions(
+    df: pd.DataFrame,
+) -> tuple[list[Transaction], list[TransactionSlave]]:
     """
     Create master and slave transactions from a DataFrame
 
@@ -19,13 +19,13 @@ def create_transactions(df:pd.DataFrame,) -> tuple[list[Transaction], list[Trans
     """
     master_transactions = []
     slave_transactions = []
-    date=pd.Timestamp(datetime.now())
-    for _, row in df.iterrows(): 
-        if row['amount']<0:
+    date = pd.Timestamp(datetime.now())
+    for _, row in df.iterrows():
+        if row["amount"] < 0:
             raise ValueError(f"Montant négatif pour la transaction {row}")
         master_transactions.append(
             Transaction(
-                transactionId=row['masterId'],
+                transactionId=row["masterId"],
                 created_at=date,
                 updated_at=date,
                 description=row["description"],
@@ -39,14 +39,14 @@ def create_transactions(df:pd.DataFrame,) -> tuple[list[Transaction], list[Trans
         # Create slave transaction
         slave_transactions.append(
             TransactionSlave(
-            slaveId=row['slaveId'],
-            created_at=date,
-            updated_at=date,
-            type='debit' if row["type"] == 'credit' else 'credit',
-            amount=row["amount"],
-            date=pd.Timestamp(row["Date"]),
-            accountId=row["slave_account"],
-            masterId=row['masterId'],
+                slaveId=row["slaveId"],
+                created_at=date,
+                updated_at=date,
+                type="debit" if row["type"] == "credit" else "credit",
+                amount=row["amount"],
+                date=pd.Timestamp(row["Date"]),
+                accountId=row["slave_account"],
+                masterId=row["masterId"],
             )
         )
 

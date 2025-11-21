@@ -1,19 +1,36 @@
-default_stages: [commit]
-fail_fast: true 
+default_stages: [pre-commit]
+fail_fast: false
 repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^back/
+      - id: ruff
+        name: ruff-check
+        args: []
+        files: ^back/
+      - id: ruff-format
+        files: ^back/
   - repo: local
     hooks:
-    - id: black
-      name: Formatting (black)
-      types: [python]
-      entry: black .
-      language: system
-      args:
-        - -S
-        - --line-length=88    
-    - id: isort
-      name: Ordering imports (isort)
-      entry: isort --profile black .
-      language: system
-      types: [python]
+      - id: check-package-files
+        name: Check npm and prettier config files are tracked
+        entry: bash -c 'git ls-files --error-unmatch front/package.json front/package-lock.json front/.prettierrc.json front/tsconfig.json >/dev/null 2>&1 || { echo "Error - Required front config files missing or not tracked"; exit 1; }'
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: prettier
+        name: Prettier (auto-fix)
+        entry: bash -c 'cd front && files=("$@"); files=("${files[@]#front/}"); npx prettier --write "${files[@]}"' --
+        language: system
+        files: ^front/.*\.(js|jsx|ts|tsx|json|css|mjs)$
+        pass_filenames: true
+      - id: eslint
+        name: ESLint (auto-fix)
+        entry: bash -c 'cd front && files=("$@"); files=("${files[@]#front/}"); npx eslint --fix "${files[@]}"' --
+        language: system
+        files: ^front/src/.*\.[jt]sx?$
+        pass_filenames: true
 

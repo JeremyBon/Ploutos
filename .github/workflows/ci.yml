@@ -1,0 +1,43 @@
+name: CI
+
+on: push
+
+jobs:
+  format-check-python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check back/
+
+  lint-front:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: cd front && npm ci
+
+      - name: Run ESLint
+        run: cd front && npm run lint
+
+      - name: Run Prettier check
+        run: cd front && npm run format:check

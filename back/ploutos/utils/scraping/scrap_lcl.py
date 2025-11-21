@@ -3,7 +3,6 @@ import os
 from os import listdir
 from os.path import isfile, join
 
-import numpy as np
 import pandas as pd
 import tabula
 from tqdm import tqdm
@@ -47,14 +46,14 @@ def convert_LCLpdf_to_df(pdf_path: str) -> pd.DataFrame:
                 df_clean = clean_df(df)
                 if df_clean is not None:
                     dfs_final.append(df_clean)
-        except:
+        except Exception:
             print("Error {} : ".format(index))
         if len(dfs_final) > 0:
             dfs_final = pd.concat(dfs_final, ignore_index=True)
             all_df_clean.append(dfs_final)
     try:
         assert len(all_df_clean) == len(raw_dfs)
-    except:
+    except AssertionError:
         print("Error in the number of dataframes")
         print("before cleaning : ", len(raw_dfs))
         print("after cleaning : ", len(all_df_clean))

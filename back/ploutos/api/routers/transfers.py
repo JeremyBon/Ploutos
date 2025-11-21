@@ -1,4 +1,5 @@
 """Router pour la gestion des transferts entre comptes."""
+
 from datetime import datetime
 from typing import Any
 
@@ -7,7 +8,6 @@ from loguru import logger
 
 from ploutos.api.deps import SessionDep
 from ploutos.db.models import (
-    RejectedTransferPair,
     RejectedTransferPairCreate,
     TransferCandidate,
     TransferMergeRequest,
@@ -108,17 +108,25 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
     """
     try:
         # Récupérer les deux transactions
-        credit_response = db.table("Transactions").select("""
+        credit_response = (
+            db.table("Transactions")
+            .select("""
             *,
             TransactionsSlaves (*)
-        """).eq("transactionId", request.credit_transaction_id).execute()
+        """)
+            .eq("transactionId", request.credit_transaction_id)
+            .execute()
+        )
 
         if not credit_response.data:
             raise HTTPException(status_code=404, detail="Credit transaction not found")
 
-        debit_response = db.table("Transactions").select("*").eq(
-            "transactionId", request.debit_transaction_id
-        ).execute()
+        debit_response = (
+            db.table("Transactions")
+            .select("*")
+            .eq("transactionId", request.debit_transaction_id)
+            .execute()
+        )
 
         if not debit_response.data:
             raise HTTPException(status_code=404, detail="Debit transaction not found")
@@ -130,36 +138,48 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
         if credit_tx["amount"] != debit_tx["amount"]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Amounts do not match: {credit_tx['amount']} != {debit_tx['amount']}"
+                detail=f"Amounts do not match: {credit_tx['amount']} != {debit_tx['amount']}",
             )
 
-        credit_date = credit_tx["date"].split("T")[0] if "T" in credit_tx["date"] else credit_tx["date"]
-        debit_date = debit_tx["date"].split("T")[0] if "T" in debit_tx["date"] else debit_tx["date"]
+        credit_date = (
+            credit_tx["date"].split("T")[0]
+            if "T" in credit_tx["date"]
+            else credit_tx["date"]
+        )
+        debit_date = (
+            debit_tx["date"].split("T")[0]
+            if "T" in debit_tx["date"]
+            else debit_tx["date"]
+        )
 
         if credit_date != debit_date:
             raise HTTPException(
                 status_code=400,
-                detail=f"Dates do not match: {credit_date} != {debit_date}"
+                detail=f"Dates do not match: {credit_date} != {debit_date}",
             )
 
         if credit_tx["type"].lower() != "credit":
             raise HTTPException(
                 status_code=400,
-                detail=f"Credit transaction must have type 'credit', got '{credit_tx['type']}'"
+                detail=f"Credit transaction must have type 'credit', got '{credit_tx['type']}'",
             )
 
         if debit_tx["type"].lower() != "debit":
             raise HTTPException(
                 status_code=400,
-                detail=f"Debit transaction must have type 'debit', got '{debit_tx['type']}'"
+                detail=f"Debit transaction must have type 'debit', got '{debit_tx['type']}'",
             )
 
         # Supprimer les slaves existants de la transaction crédit
         existing_slaves = credit_tx.get("TransactionsSlaves", [])
         for slave in existing_slaves:
-            db.table("TransactionsSlaves").delete().eq("slaveId", slave["slaveId"]).execute()
+            db.table("TransactionsSlaves").delete().eq(
+                "slaveId", slave["slaveId"]
+            ).execute()
 
-        logger.info(f"Deleted {len(existing_slaves)} existing slaves from credit transaction")
+        logger.info(
+            f"Deleted {len(existing_slaves)} existing slaves from credit transaction"
+        )
 
         # Créer un nouveau slave pointant vers le compte de la transaction débit
         current_time = datetime.now().isoformat()
@@ -177,14 +197,20 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
         logger.info(f"Created new slave: {slave_response.data}")
 
         # Supprimer la transaction débit
-        db.table("Transactions").delete().eq("transactionId", debit_tx["transactionId"]).execute()
+        db.table("Transactions").delete().eq(
+            "transactionId", debit_tx["transactionId"]
+        ).execute()
         logger.info(f"Deleted debit transaction: {debit_tx['transactionId']}")
 
         # Supprimer les slaves de la transaction débit également
-        db.table("TransactionsSlaves").delete().eq("masterId", debit_tx["transactionId"]).execute()
+        db.table("TransactionsSlaves").delete().eq(
+            "masterId", debit_tx["transactionId"]
+        ).execute()
 
         # Récupérer la transaction mise à jour avec le nouveau slave
-        updated_response = db.table("Transactions").select("""
+        updated_response = (
+            db.table("Transactions")
+            .select("""
             *,
             TransactionsSlaves (
                 *,
@@ -193,7 +219,10 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
                     is_real
                 )
             )
-        """).eq("transactionId", credit_tx["transactionId"]).execute()
+        """)
+            .eq("transactionId", credit_tx["transactionId"])
+            .execute()
+        )
 
         return updated_response.data[0]
 
@@ -215,7 +244,9 @@ async def get_transfers(db: SessionDep):
     """
     try:
         # Récupérer toutes les transactions avec leurs slaves
-        response = db.table("Transactions").select("""
+        response = (
+            db.table("Transactions")
+            .select("""
             *,
             Accounts!left (
                 name,
@@ -228,7 +259,9 @@ async def get_transfers(db: SessionDep):
                     is_real
                 )
             )
-        """).execute()
+        """)
+            .execute()
+        )
 
         if not response.data:
             return []
@@ -238,8 +271,7 @@ async def get_transfers(db: SessionDep):
         for tx in response.data:
             slaves = tx.get("TransactionsSlaves", [])
             has_real_slave = any(
-                slave.get("Accounts", {}).get("is_real", False)
-                for slave in slaves
+                slave.get("Accounts", {}).get("is_real", False) for slave in slaves
             )
 
             if has_real_slave:
@@ -318,9 +350,7 @@ async def reject_transfer_candidate(
             "rejected_reason": request.rejected_reason,
         }
 
-        response = (
-            db.table("RejectedTransferPairs").insert(rejection_data).execute()
-        )
+        response = db.table("RejectedTransferPairs").insert(rejection_data).execute()
 
         logger.info(
             f"Rejected transfer pair: {tx_id_1} <-> {tx_id_2}"
