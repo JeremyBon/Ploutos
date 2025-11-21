@@ -1,12 +1,14 @@
 """Tests d'intégration pour les transferts."""
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
-import pytest
+from unittest.mock import MagicMock
 
 
 def test_multiple_transfer_pairs(
-    test_client, mock_db, sample_transfer_pair, sample_unknown_account, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_transfer_pair,
+    sample_unknown_account,
+    mock_supabase_response,
 ):
     """Détecte plusieurs paires de transferts en même temps."""
     # Arrange: Créer deux paires de transferts
@@ -160,7 +162,11 @@ def test_merge_workflow_simple(
 
 
 def test_split_workflow_simple(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Test simplifié du workflow split."""
     # Arrange
@@ -181,8 +187,8 @@ def test_split_workflow_simple(
     mock_table_transactions.select.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([merged_tx])
     )
-    mock_table_transactions.insert.return_value.execute.return_value = mock_supabase_response(
-        [new_transaction]
+    mock_table_transactions.insert.return_value.execute.return_value = (
+        mock_supabase_response([new_transaction])
     )
 
     # Mock pour TransactionsSlaves table
@@ -199,7 +205,7 @@ def test_split_workflow_simple(
         "accountId": "99999999-9999-9999-9999-999999999999",  # Unknown account
         "amount": slave_to_split["amount"],
         "type": slave_to_split["type"],
-        "updated_at": slave_to_split["date"]
+        "updated_at": slave_to_split["date"],
     }
 
     mock_table_slaves = MagicMock()

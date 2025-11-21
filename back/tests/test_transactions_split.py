@@ -1,8 +1,6 @@
 """Tests pour l'endpoint de split de slaves (réversibilité des transferts)."""
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
-import pytest
+from unittest.mock import MagicMock
 
 
 def setup_split_mocks(mock_db, merged_tx, mock_supabase_response):
@@ -23,8 +21,8 @@ def setup_split_mocks(mock_db, merged_tx, mock_supabase_response):
     mock_table_transactions.select.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([merged_tx])
     )
-    mock_table_transactions.insert.return_value.execute.return_value = mock_supabase_response(
-        [new_transaction]
+    mock_table_transactions.insert.return_value.execute.return_value = (
+        mock_supabase_response([new_transaction])
     )
 
     # Mock pour TransactionsSlaves table
@@ -41,7 +39,7 @@ def setup_split_mocks(mock_db, merged_tx, mock_supabase_response):
         "accountId": "99999999-9999-9999-9999-999999999999",  # Unknown account
         "amount": slave_to_split["amount"],
         "type": slave_to_split["type"],
-        "updated_at": slave_to_split["date"]
+        "updated_at": slave_to_split["date"],
     }
 
     mock_table_slaves = MagicMock()
@@ -65,7 +63,11 @@ def setup_split_mocks(mock_db, merged_tx, mock_supabase_response):
 
 
 def test_split_creates_new_transaction(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Le split crée une nouvelle transaction master sur le compte du slave."""
     # Arrange
@@ -89,7 +91,11 @@ def test_split_creates_new_transaction(
 
 
 def test_split_new_transaction_on_slave_account(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """La nouvelle transaction est créée sur le compte du slave (destination)."""
     # Arrange
@@ -113,7 +119,11 @@ def test_split_new_transaction_on_slave_account(
 
 
 def test_split_creates_inverse_slave(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Le split crée un slave inverse pointant vers le compte d'origine."""
     # Arrange
@@ -137,7 +147,11 @@ def test_split_creates_inverse_slave(
 
 
 def test_split_updates_original_slave_to_unknown(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Le split modifie le slave original pour pointer vers Unknown."""
     # Arrange
@@ -161,7 +175,11 @@ def test_split_updates_original_slave_to_unknown(
 
 
 def test_split_reverses_transaction_type(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Le split crée une transaction avec le type inversé (credit → debit)."""
     # Arrange
@@ -185,7 +203,11 @@ def test_split_reverses_transaction_type(
 
 
 def test_split_uses_absolute_amount(
-    test_client, mock_db, sample_merged_transaction, sample_accounts, mock_supabase_response
+    test_client,
+    mock_db,
+    sample_merged_transaction,
+    sample_accounts,
+    mock_supabase_response,
 ):
     """Le split utilise la valeur absolue du montant du slave."""
     # Arrange

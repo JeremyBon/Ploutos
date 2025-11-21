@@ -2,11 +2,10 @@ from functools import lru_cache
 
 from pydantic.types import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
     # API Settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Ploutos"
@@ -27,7 +26,9 @@ class Settings(BaseSettings):
         try:
             return bytes.fromhex(key_hex)
         except ValueError:
-            raise ValueError("ENCRYPTION_KEY doit être une chaîne hexadécimale valide (64 caractères).")
+            raise ValueError(
+                "ENCRYPTION_KEY doit être une chaîne hexadécimale valide (64 caractères)."
+            )
 
 
 @lru_cache()

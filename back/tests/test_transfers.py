@@ -1,8 +1,6 @@
 """Tests pour le router /transfers."""
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
-import pytest
+from unittest.mock import MagicMock
 
 
 # =============================================================================
@@ -57,9 +55,7 @@ def test_get_candidates_valid_pair(
     assert candidates[0]["date"] == "2025-01-15"
 
 
-def test_get_candidates_different_amounts(
-    test_client, mock_db, mock_supabase_response
-):
+def test_get_candidates_different_amounts(test_client, mock_db, mock_supabase_response):
     """Ignore les paires avec des montants différents."""
     # Arrange: La RPC retourne une liste vide car les montants diffèrent
     mock_rpc = MagicMock()
@@ -75,9 +71,7 @@ def test_get_candidates_different_amounts(
     assert len(candidates) == 0
 
 
-def test_get_candidates_different_dates(
-    test_client, mock_db, mock_supabase_response
-):
+def test_get_candidates_different_dates(test_client, mock_db, mock_supabase_response):
     """Ignore les paires avec des dates différentes."""
     # Arrange: La RPC retourne une liste vide car les dates diffèrent
     mock_rpc = MagicMock()
@@ -93,9 +87,7 @@ def test_get_candidates_different_dates(
     assert len(candidates) == 0
 
 
-def test_get_candidates_same_type(
-    test_client, mock_db, mock_supabase_response
-):
+def test_get_candidates_same_type(test_client, mock_db, mock_supabase_response):
     """Ignore les paires avec le même type (credit/credit ou debit/debit)."""
     # Arrange: La RPC retourne une liste vide car les types sont identiques
     mock_rpc = MagicMock()
@@ -111,9 +103,7 @@ def test_get_candidates_same_type(
     assert len(candidates) == 0
 
 
-def test_get_candidates_has_real_slave(
-    test_client, mock_db, mock_supabase_response
-):
+def test_get_candidates_has_real_slave(test_client, mock_db, mock_supabase_response):
     """Ignore les transactions qui ont déjà un slave vers un compte réel."""
     # Arrange: La RPC filtre déjà les transactions avec slaves réels
     mock_rpc = MagicMock()
@@ -241,7 +231,9 @@ def test_merge_deletes_positive_transaction(
 
     # Mock pour TransactionsSlaves
     mock_table_slaves = MagicMock()
-    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response([])
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response(
+        []
+    )
     mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
         mock_supabase_response([])
     )
@@ -359,9 +351,13 @@ def test_merge_removes_unknown_slaves(
     )
 
     mock_table_slaves = MagicMock()
-    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response([])
+    mock_table_slaves.insert.return_value.execute.return_value = mock_supabase_response(
+        []
+    )
     mock_table_slaves.delete.return_value.eq.return_value.execute.return_value = (
-        mock_supabase_response([{"slaveId": "aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbbbb"}])  # Slave supprimé
+        mock_supabase_response(
+            [{"slaveId": "aaaaaaaa-aaaa-aaaa-aaaa-bbbbbbbbbbbb"}]
+        )  # Slave supprimé
     )
 
     def table_router(table_name):

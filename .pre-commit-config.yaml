@@ -13,14 +13,14 @@ repos:
     hooks:
       - id: prettier
         name: Prettier (auto-fix)
-        entry: bash -c 'cd front && npx prettier --write "$@" && git diff --exit-code "$@"'
+        entry: bash -c 'cd front && files=("$@"); files=("${files[@]#front/}"); npx prettier --write "${files[@]}"' --
         language: system
-        files: ^front/.*\.(js|jsx|ts|tsx|json|css)$
+        files: ^front/src/.*\.(js|jsx|ts|tsx|json|css)$
         pass_filenames: true
       - id: eslint
         name: ESLint (auto-fix)
-        entry: bash -c 'cd front && npx eslint --fix "$@" && git diff --exit-code "$@"'
+        entry: bash -c 'cd front && files=("$@"); files=("${files[@]#front/}"); npx eslint --fix "${files[@]}"' --
         language: system
-        files: ^front/.*\.[jt]sx?$
+        files: ^front/src/.*\.[jt]sx?$
         pass_filenames: true
 
