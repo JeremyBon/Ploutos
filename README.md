@@ -1,5 +1,19 @@
 # PLOUTOS
-This is ploutos
+
+Application web de gestion financière personnelle permettant de suivre et d'analyser vos finances en temps réel.
+
+## Fonctionnalités
+
+- **Agrégation bancaire automatique** via GoCardless (Open Banking)
+- **Gestion des comptes** réels (banque, épargne) et virtuels (catégories de dépenses/revenus)
+- **Système de comptabilité en partie double** :
+  - Chaque transaction principale (master) peut être décomposée en plusieurs sous-transactions (slaves)
+  - Les slaves de type "crédit" représentent les sorties d'argent (dépenses)
+  - Les slaves de type "débit" représentent les entrées d'argent (revenus)
+  - Permet de splitter une transaction sur plusieurs catégories (ex: un achat de 100€ réparti entre Alimentation 70€ et Loisirs 30€)
+- **Dashboard interactif** avec graphiques d'analyse (revenus, dépenses, patrimoine)
+- **Détection automatique des transferts** entre comptes
+- **Édition et catégorisation** des transactions avec gestion des slaves
 
 
 ## Installation
