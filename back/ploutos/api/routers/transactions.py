@@ -117,6 +117,14 @@ async def get_transactions(
             )
         logger.info(f"{len(transactions_resp.data)} transactions found")
 
+        # Debug: Log first transaction to check date format
+        if transactions_resp.data:
+            logger.info(f"🔍 First transaction sample: {transactions_resp.data[0]}")
+            if transactions_resp.data[0].get("TransactionsSlaves"):
+                logger.info(
+                    f"🔍 First slave sample: {transactions_resp.data[0]['TransactionsSlaves'][0]}"
+                )
+
         return transactions_resp.data
     except Exception as e:
         logger.error(f"Error getting transactions: {str(e)}")

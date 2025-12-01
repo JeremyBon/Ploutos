@@ -96,9 +96,9 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
     """Merge deux transactions en un transfert.
 
     Logique :
-    1. Garde la transaction crédit (négative/sortie)
+    1. Garde la transaction crédit (positive/entrée)
     2. Crée un slave vers le compte de la transaction débit
-    3. Supprime la transaction débit (positive/entrée)
+    3. Supprime la transaction débit (négative/sortie)
 
     Args:
         request: IDs des transactions à merger
@@ -136,6 +136,9 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
 
         # Validations
         if credit_tx["amount"] != debit_tx["amount"]:
+            logger.error(
+                f"BAD REQUEST: Amounts do not match - credit={credit_tx['amount']}, debit={debit_tx['amount']}"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Amounts do not match: {credit_tx['amount']} != {debit_tx['amount']}",
@@ -153,18 +156,27 @@ async def merge_transfer(request: TransferMergeRequest, db: SessionDep):
         )
 
         if credit_date != debit_date:
+            logger.error(
+                f"BAD REQUEST: Dates do not match - credit={credit_date}, debit={debit_date}"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Dates do not match: {credit_date} != {debit_date}",
             )
 
         if credit_tx["type"].lower() != "credit":
+            logger.error(
+                f"BAD REQUEST: Credit transaction {credit_tx['transactionId']} has wrong type: '{credit_tx['type']}' (expected 'credit')"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Credit transaction must have type 'credit', got '{credit_tx['type']}'",
             )
 
         if debit_tx["type"].lower() != "debit":
+            logger.error(
+                f"BAD REQUEST: Debit transaction {debit_tx['transactionId']} has wrong type: '{debit_tx['type']}' (expected 'debit')"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Debit transaction must have type 'debit', got '{debit_tx['type']}'",
