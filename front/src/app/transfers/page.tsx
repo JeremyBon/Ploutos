@@ -456,11 +456,11 @@ export default function Transfers() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Transaction Crédit (Sortie) */}
-                        <div className="bg-white border-2 border-red-200 rounded-lg p-4">
+                        {/* Transaction Crédit (Entrée) */}
+                        <div className="bg-white border-2 border-green-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-3">
-                            <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-semibold">
-                              CRÉDIT (Sortie)
+                            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+                              CRÉDIT (Entrée)
                             </div>
                           </div>
                           <h4 className="font-semibold text-gray-800 mb-2">
@@ -480,8 +480,8 @@ export default function Transfers() {
                             </p>
                             <p className="text-gray-600">
                               <span className="font-medium">Montant:</span>{" "}
-                              <span className="font-bold text-red-600">
-                                -
+                              <span className="font-bold text-green-600">
+                                +
                                 {candidate.credit_transaction.amount.toFixed(2)}
                                 €
                               </span>
@@ -509,11 +509,11 @@ export default function Transfers() {
                           </div>
                         </div>
 
-                        {/* Transaction Débit (Entrée) */}
-                        <div className="bg-white border-2 border-green-200 rounded-lg p-4">
+                        {/* Transaction Débit (Sortie) */}
+                        <div className="bg-white border-2 border-red-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-3">
-                            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
-                              DÉBIT (Entrée)
+                            <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-semibold">
+                              DÉBIT (Sortie)
                             </div>
                           </div>
                           <h4 className="font-semibold text-gray-800 mb-2">
@@ -533,8 +533,8 @@ export default function Transfers() {
                             </p>
                             <p className="text-gray-600">
                               <span className="font-medium">Montant:</span>{" "}
-                              <span className="font-bold text-green-600">
-                                +{candidate.debit_transaction.amount.toFixed(2)}
+                              <span className="font-bold text-red-600">
+                                -{candidate.debit_transaction.amount.toFixed(2)}
                                 €
                               </span>
                             </p>
@@ -643,21 +643,21 @@ export default function Transfers() {
             <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
               <p className="text-sm">
                 <span className="font-medium">De:</span>{" "}
-                {selectedCandidate.credit_transaction.description}
-                {selectedCandidate.credit_transaction.accountName && (
-                  <span className="text-gray-500">
-                    {" "}
-                    ({selectedCandidate.credit_transaction.accountName})
-                  </span>
-                )}
-              </p>
-              <p className="text-sm">
-                <span className="font-medium">Vers:</span>{" "}
                 {selectedCandidate.debit_transaction.description}
                 {selectedCandidate.debit_transaction.accountName && (
                   <span className="text-gray-500">
                     {" "}
                     ({selectedCandidate.debit_transaction.accountName})
+                  </span>
+                )}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Vers:</span>{" "}
+                {selectedCandidate.credit_transaction.description}
+                {selectedCandidate.credit_transaction.accountName && (
+                  <span className="text-gray-500">
+                    {" "}
+                    ({selectedCandidate.credit_transaction.accountName})
                   </span>
                 )}
               </p>
@@ -698,21 +698,21 @@ export default function Transfers() {
             <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
               <p className="text-sm">
                 <span className="font-medium">De:</span>{" "}
-                {selectedRejectCandidate.credit_transaction.description}
-                {selectedRejectCandidate.credit_transaction.accountName && (
-                  <span className="text-gray-500">
-                    {" "}
-                    ({selectedRejectCandidate.credit_transaction.accountName})
-                  </span>
-                )}
-              </p>
-              <p className="text-sm">
-                <span className="font-medium">Vers:</span>{" "}
                 {selectedRejectCandidate.debit_transaction.description}
                 {selectedRejectCandidate.debit_transaction.accountName && (
                   <span className="text-gray-500">
                     {" "}
                     ({selectedRejectCandidate.debit_transaction.accountName})
+                  </span>
+                )}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Vers:</span>{" "}
+                {selectedRejectCandidate.credit_transaction.description}
+                {selectedRejectCandidate.credit_transaction.accountName && (
+                  <span className="text-gray-500">
+                    {" "}
+                    ({selectedRejectCandidate.credit_transaction.accountName})
                   </span>
                 )}
               </p>

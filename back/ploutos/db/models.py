@@ -119,10 +119,10 @@ class TransferCandidate(BaseModel):
     """Paire de transactions détectées comme candidats pour un transfert."""
 
     credit_transaction: dict = Field(
-        ..., description="Transaction crédit (sortie/négative)"
+        ..., description="Transaction crédit (entrée/positive)"
     )
     debit_transaction: dict = Field(
-        ..., description="Transaction débit (entrée/positive)"
+        ..., description="Transaction débit (sortie/négative)"
     )
     amount: float = Field(..., description="Montant du transfert")
     date: str = Field(..., description="Date du transfert")
@@ -135,10 +135,10 @@ class TransferMergeRequest(BaseModel):
     """Request pour merger deux transactions en un transfert."""
 
     credit_transaction_id: UUID = Field(
-        ..., description="ID de la transaction crédit (sortie/négative)"
+        ..., description="ID de la transaction crédit (entrée/positive)"
     )
     debit_transaction_id: UUID = Field(
-        ..., description="ID de la transaction débit (entrée/positive)"
+        ..., description="ID de la transaction débit (sortie/négative)"
     )
 
 

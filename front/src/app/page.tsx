@@ -157,6 +157,7 @@ export default function Home() {
         throw new Error("Failed to fetch transactions");
       }
       const data = await response.json();
+      console.log("🔍 [fetchTransactions] Data from API:", data);
       setTransactions(data);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -352,7 +353,7 @@ export default function Home() {
               accountId: slave.accountId,
               category: account?.category || "Inconnu",
               subCategory: account?.sub_category || "Inconnu",
-              type: slave.type,
+              type: transaction.type,
             });
           }
         }
@@ -377,11 +378,16 @@ export default function Home() {
 
   // Fonction pour ouvrir le modal d'édition
   const handleEditTransaction = (transaction: DetailedTransaction) => {
+    console.log("🔍 [handleEditTransaction] Transaction clicked:", transaction);
     setEditingTransaction(transaction);
 
     // Récupérer la transaction maître pour avoir les bonnes informations
     const masterTransaction = transactions.find(
       (t) => t.transactionId === transaction.transactionId
+    );
+    console.log(
+      "🔍 [handleEditTransaction] Master transaction found:",
+      masterTransaction
     );
 
     // Récupérer le compte maître pour avoir la catégorie et sous-catégorie actuelles
