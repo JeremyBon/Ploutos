@@ -1,7 +1,7 @@
 """Base transaction processor interface."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Type
+from typing import Any, Dict, List, Type, TypeVar, Generic
 from loguru import logger
 from pydantic import BaseModel
 
@@ -14,13 +14,17 @@ class ProcessorConfigBase(BaseModel):
     pass
 
 
+# TypeVar for processor-specific configuration
+ConfigT = TypeVar("ConfigT", bound=ProcessorConfigBase)
+
+
 # Global registry for all processors
-_PROCESSOR_REGISTRY: Dict[str, Type["TransactionProcessor"]] = {}
+_PROCESSOR_REGISTRY: Dict[str, Type["TransactionProcessor[Any]"]] = {}
 
 
 def register_processor(
-    processor_class: Type["TransactionProcessor"],
-) -> Type["TransactionProcessor"]:
+    processor_class: Type["TransactionProcessor[Any]"],
+) -> Type["TransactionProcessor[Any]"]:
     """Register a processor class in the global registry.
 
     Usage as decorator:
@@ -51,7 +55,7 @@ def register_processor(
     return processor_class
 
 
-def get_processor(processor_type: str) -> Type["TransactionProcessor"]:
+def get_processor(processor_type: str) -> Type["TransactionProcessor[Any]"]:
     """Get a processor class by type.
 
     Args:
@@ -81,7 +85,7 @@ def list_processors() -> List[str]:
     return list(_PROCESSOR_REGISTRY.keys())
 
 
-class TransactionProcessor(ABC):
+class TransactionProcessor(ABC, Generic[ConfigT]):
     """Abstract base class for transaction processors.
 
     All processors must implement:
@@ -103,15 +107,15 @@ class TransactionProcessor(ABC):
 
     @property
     @abstractmethod
-    def config_class(self) -> type[ProcessorConfigBase]:
+    def config_class(self) -> type[ConfigT]:
         """Return the Pydantic config class for this processor.
 
         Returns:
-            type[ProcessorConfigBase]: Pydantic model class for configuration
+            type[ConfigT]: Pydantic model class for configuration
         """
         ...
 
-    def validate_config(self, config: dict) -> ProcessorConfigBase:
+    def validate_config(self, config: dict) -> ConfigT:
         """Validate and return typed processor configuration.
 
         Args:
@@ -126,9 +130,7 @@ class TransactionProcessor(ABC):
         return self.config_class(**config)
 
     @abstractmethod
-    def process(
-        self, transaction: TransactionWithSlaves, config: ProcessorConfigBase
-    ) -> dict:
+    def process(self, transaction: TransactionWithSlaves, config: ConfigT) -> dict:
         """Process transaction and generate slave transactions.
 
         Args:
