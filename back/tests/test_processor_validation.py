@@ -591,7 +591,7 @@ def test_validate_balance_zero_master_with_nonzero_slaves(
 
 
 def test_validate_transaction_fails_on_first_check_ignores_others(
-    mock_processor, correct_unknown_account, make_transaction_slave
+    mock_processor, make_transaction_slave
 ):
     """Validation doit échouer sur le nombre de slaves avant de vérifier la balance."""
     # Arrange: Transaction avec 0 slaves ET balance incorrecte
