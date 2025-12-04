@@ -203,8 +203,8 @@ class TransactionProcessor(ABC, Generic[ConfigT]):
         # Formula: master_amount = -(slave_credit - slave_debit)
         signed_slaves = -(total_credit - total_debit)
 
-        # Allow small floating point errors (1 cent)
-        if abs(signed_master - signed_slaves) > 0.01:
+        # Strict balance validation (all amounts rounded to 2 decimals)
+        if abs(signed_master - signed_slaves) != 0:
             raise ValueError(
                 f"Balance mismatch: master {master_type} {master_amount} (signed: {signed_master}), "
                 f"slaves credit {total_credit}, debit {total_debit} (signed sum: {signed_slaves}). "

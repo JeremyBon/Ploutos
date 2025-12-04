@@ -487,16 +487,14 @@ def test_validate_balance_multiple_slaves_balanced(
     "master_amount,slave_amount,should_pass",
     [
         (100.00, 100.00, True),  # exact match
-        (100.00, 100.005, True),  # dans la tolérance
-        (100.00, 100.009, True),  # très proche de la limite
-        (100.00, 100.011, False),  # dépasse la tolérance
-        (100.00, 100.02, False),  # clairement au-dessus
+        (100.00, 100.01, False),  # 1 centime de différence
+        (100.00, 100.02, False),  # 2 centimes de différence
     ],
 )
 def test_validate_balance_floating_point_tolerance(
     master_amount, slave_amount, should_pass, mock_processor, base_transaction
 ):
-    """Tolérance de floating point doit être exactement 0.01."""
+    """Balance validation with 2-decimal precision (no sub-cent tolerance)."""
     # Arrange: Master debit avec montant spécifié
     base_transaction.type = "debit"
     base_transaction.amount = master_amount
