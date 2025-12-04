@@ -87,6 +87,18 @@ class TransactionSlave(TransactionSlaveBase):
     updated_at: datetime
 
 
+class TransactionSlaveWithAccount(TransactionSlave):
+    """Transaction slave avec infos du compte (jointure avec Accounts)."""
+
+    Accounts: Account
+
+
+class TransactionWithSlaves(Transaction):
+    """Transaction avec ses slaves et comptes (pour processors)."""
+
+    TransactionsSlaves: list[TransactionSlaveWithAccount] = Field(default_factory=list)
+
+
 class AccountsSecretsBase(BaseModel):
     updated_at: datetime
     accountId: UUID
