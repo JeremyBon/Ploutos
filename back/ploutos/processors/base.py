@@ -4,14 +4,21 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Type, TypeVar, Generic
 from loguru import logger
 from pydantic import BaseModel
+from enum import Enum
 
 from ploutos.db.models import TransactionWithSlaves, TransactionSlaveCreate
+
+
+class TransactionFilter(Enum):
+    DEBIT = "debit"
+    CREDIT = "credit"
+    ALL = "all"
 
 
 class ProcessorConfigBase(BaseModel):
     """Base configuration class for all processors."""
 
-    pass
+    transaction_filter: TransactionFilter = TransactionFilter.ALL
 
 
 # TypeVar for processor-specific configuration
