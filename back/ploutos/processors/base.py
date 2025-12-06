@@ -205,13 +205,17 @@ class TransactionProcessor(ABC, Generic[ConfigT]):
         total_debit = sum(s.amount for s in new_slaves if s.type == "debit")
 
         # Apply signs: debit = -, credit = +
-        signed_master = -master_amount if master_type == "debit" else master_amount
+        # Round to 2 decimals to avoid floating point precision errors
+        signed_master = round(
+            -master_amount if master_type == "debit" else master_amount, 2
+        )
 
         # Formula: master_amount = -(slave_credit - slave_debit)
-        signed_slaves = -(total_credit - total_debit)
+        # Round to 2 decimals to avoid floating point precision errors
+        signed_slaves = round(-(total_credit - total_debit), 2)
 
-        # Strict balance validation (all amounts rounded to 2 decimals)
-        if abs(signed_master - signed_slaves) != 0:
+        # Strict balance validation (comparing rounded values)
+        if signed_master != signed_slaves:
             raise ValueError(
                 f"Balance mismatch: master {master_type} {master_amount} (signed: {signed_master}), "
                 f"slaves credit {total_credit}, debit {total_debit} (signed sum: {signed_slaves}). "

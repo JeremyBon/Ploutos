@@ -19,6 +19,12 @@ interface SplitItem {
 interface ProcessorConfig {
   splits?: SplitItem[];
   transaction_filter?: string;
+  loan_amount?: number;
+  annual_rate?: number;
+  duration_months?: number;
+  start_date?: string;
+  capital_account_id?: string;
+  interest_account_id?: string;
   [key: string]: unknown;
 }
 
@@ -81,7 +87,10 @@ const MATCH_TYPES = [
   { value: "regex", label: "Regex" },
 ];
 
-const CATEGORIZATION_TYPES = [{ value: "splitItem", label: "Classique" }];
+const CATEGORIZATION_TYPES = [
+  { value: "splitItem", label: "Classique" },
+  { value: "loan", label: "Remboursement de prêt" },
+];
 
 const TRANSACTION_FILTERS = [
   { value: "all", label: "Toutes les transactions" },
@@ -251,6 +260,8 @@ export default function Categorization() {
 
   const handleEdit = (rule: CategorizationRule) => {
     setEditingRule(rule);
+    const categorizationType =
+      rule.processor_type === "loan" ? "loan" : "splitItem";
     setFormData({
       description: rule.description,
       match_type: rule.match_type,
@@ -258,7 +269,7 @@ export default function Categorization() {
       account_ids: rule.account_ids || [],
       priority: rule.priority,
       enabled: rule.enabled,
-      categorization_type: "splitItem",
+      categorization_type: categorizationType,
       processor_type: rule.processor_type,
       processor_config: rule.processor_config,
     });
@@ -337,7 +348,25 @@ export default function Categorization() {
       : accountId;
   };
 
-  const formatSplits = (config: ProcessorConfig) => {
+  const formatSplits = (config: ProcessorConfig, processorType: string) => {
+    if (processorType === "loan") {
+      return (
+        <div className="text-xs space-y-1">
+          <div>
+            <span className="font-semibold">Capital:</span>{" "}
+            {getAccountName(config.capital_account_id)}
+          </div>
+          <div>
+            <span className="font-semibold">Intérêts:</span>{" "}
+            {getAccountName(config.interest_account_id)}
+          </div>
+          <div className="text-gray-500 mt-1">
+            {config.loan_amount}€ sur {config.duration_months} mois à{" "}
+            {config.annual_rate}%
+          </div>
+        </div>
+      );
+    }
     if (config.splits && config.splits.length > 0) {
       return config.splits.map((split, idx) => (
         <div key={idx} className="text-xs">
@@ -570,12 +599,34 @@ export default function Categorization() {
                     </label>
                     <select
                       value={formData.categorization_type}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          categorization_type: e.target.value,
-                        })
-                      }
+                      onChange={(e) => {
+                        const newType = e.target.value;
+                        if (newType === "loan") {
+                          setFormData({
+                            ...formData,
+                            categorization_type: newType,
+                            processor_type: "loan",
+                            processor_config: {
+                              loan_amount: 0,
+                              annual_rate: 0,
+                              duration_months: 0,
+                              start_date: "",
+                              capital_account_id: "",
+                              interest_account_id: "",
+                            },
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            categorization_type: newType,
+                            processor_type: "simple_split",
+                            processor_config: {
+                              splits: [{ account_id: "", percentage: 100 }],
+                              transaction_filter: "all",
+                            },
+                          });
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       {CATEGORIZATION_TYPES.map((type) => (
@@ -586,175 +637,356 @@ export default function Categorization() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Filtre de transaction
-                    </label>
-                    <select
-                      value={
-                        formData.processor_config.transaction_filter || "all"
-                      }
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          processor_config: {
-                            ...formData.processor_config,
-                            transaction_filter: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      {TRANSACTION_FILTERS.map((filter) => (
-                        <option key={filter.value} value={filter.value}>
-                          {filter.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Choisissez si cette règle s&apos;applique aux débits,
-                      crédits ou toutes les transactions
-                    </p>
-                  </div>
+                  {formData.categorization_type === "splitItem" ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Filtre de transaction
+                        </label>
+                        <select
+                          value={
+                            formData.processor_config.transaction_filter ||
+                            "all"
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                transaction_filter: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        >
+                          {TRANSACTION_FILTERS.map((filter) => (
+                            <option key={filter.value} value={filter.value}>
+                              {filter.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Choisissez si cette règle s&apos;applique aux débits,
+                          crédits ou toutes les transactions
+                        </p>
+                      </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Répartition des comptes
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const splits = formData.processor_config.splits || [];
-                          setFormData({
-                            ...formData,
-                            processor_config: {
-                              ...formData.processor_config,
-                              splits: [
-                                ...splits,
-                                { account_id: "", percentage: 0 },
-                              ],
-                            },
-                          });
-                        }}
-                        className="text-sm bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded"
-                      >
-                        + Ajouter un split
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {(formData.processor_config.splits || []).map(
-                        (split, index) => (
-                          <div
-                            key={index}
-                            className="flex gap-2 items-center bg-gray-50 p-3 rounded-lg"
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Répartition des comptes
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const splits =
+                                formData.processor_config.splits || [];
+                              setFormData({
+                                ...formData,
+                                processor_config: {
+                                  ...formData.processor_config,
+                                  splits: [
+                                    ...splits,
+                                    { account_id: "", percentage: 0 },
+                                  ],
+                                },
+                              });
+                            }}
+                            className="text-sm bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded"
                           >
-                            <div className="flex-1">
-                              <select
-                                value={split.account_id}
-                                onChange={(e) => {
-                                  const splits = [
-                                    ...(formData.processor_config.splits || []),
-                                  ];
-                                  splits[index] = {
-                                    ...splits[index],
-                                    account_id: e.target.value,
-                                  };
-                                  setFormData({
-                                    ...formData,
-                                    processor_config: {
-                                      ...formData.processor_config,
-                                      splits,
-                                    },
-                                  });
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                required
+                            + Ajouter un split
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {(formData.processor_config.splits || []).map(
+                            (split, index) => (
+                              <div
+                                key={index}
+                                className="flex gap-2 items-center bg-gray-50 p-3 rounded-lg"
                               >
-                                <option value="">Sélectionnez un compte</option>
-                                {accounts.map((account) => (
-                                  <option
-                                    key={account.accountId}
-                                    value={account.accountId}
+                                <div className="flex-1">
+                                  <select
+                                    value={split.account_id}
+                                    onChange={(e) => {
+                                      const splits = [
+                                        ...(formData.processor_config.splits ||
+                                          []),
+                                      ];
+                                      splits[index] = {
+                                        ...splits[index],
+                                        account_id: e.target.value,
+                                      };
+                                      setFormData({
+                                        ...formData,
+                                        processor_config: {
+                                          ...formData.processor_config,
+                                          splits,
+                                        },
+                                      });
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    required
                                   >
-                                    {account.name} ({account.category} -{" "}
-                                    {account.sub_category})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="w-24">
-                              <input
-                                type="number"
-                                value={split.percentage}
-                                onChange={(e) => {
-                                  const splits = [
-                                    ...(formData.processor_config.splits || []),
-                                  ];
-                                  splits[index] = {
-                                    ...splits[index],
-                                    percentage: parseFloat(e.target.value),
-                                  };
-                                  setFormData({
-                                    ...formData,
-                                    processor_config: {
-                                      ...formData.processor_config,
-                                      splits,
-                                    },
-                                  });
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                required
-                              />
-                            </div>
-                            <span className="text-sm text-gray-600">%</span>
-                            {(formData.processor_config.splits || []).length >
-                              1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const splits = [
-                                    ...(formData.processor_config.splits || []),
-                                  ];
-                                  splits.splice(index, 1);
-                                  setFormData({
-                                    ...formData,
-                                    processor_config: {
-                                      ...formData.processor_config,
-                                      splits,
-                                    },
-                                  });
-                                }}
-                                className="text-red-600 hover:text-red-800 px-2"
-                              >
-                                🗑️
-                              </button>
+                                    <option value="">
+                                      Sélectionnez un compte
+                                    </option>
+                                    {accounts.map((account) => (
+                                      <option
+                                        key={account.accountId}
+                                        value={account.accountId}
+                                      >
+                                        {account.name} ({account.category} -{" "}
+                                        {account.sub_category})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="w-24">
+                                  <input
+                                    type="number"
+                                    value={split.percentage}
+                                    onChange={(e) => {
+                                      const splits = [
+                                        ...(formData.processor_config.splits ||
+                                          []),
+                                      ];
+                                      splits[index] = {
+                                        ...splits[index],
+                                        percentage: parseFloat(e.target.value),
+                                      };
+                                      setFormData({
+                                        ...formData,
+                                        processor_config: {
+                                          ...formData.processor_config,
+                                          splits,
+                                        },
+                                      });
+                                    }}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    required
+                                  />
+                                </div>
+                                <span className="text-sm text-gray-600">%</span>
+                                {(formData.processor_config.splits || [])
+                                  .length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const splits = [
+                                        ...(formData.processor_config.splits ||
+                                          []),
+                                      ];
+                                      splits.splice(index, 1);
+                                      setFormData({
+                                        ...formData,
+                                        processor_config: {
+                                          ...formData.processor_config,
+                                          splits,
+                                        },
+                                      });
+                                    }}
+                                    className="text-red-600 hover:text-red-800 px-2"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          )}
+                          <div className="text-xs text-gray-600 mt-2">
+                            Total:{" "}
+                            {(formData.processor_config.splits || [])
+                              .reduce((sum, s) => sum + (s.percentage || 0), 0)
+                              .toFixed(2)}
+                            %
+                            {Math.abs(
+                              (formData.processor_config.splits || []).reduce(
+                                (sum, s) => sum + (s.percentage || 0),
+                                0
+                              ) - 100
+                            ) > 0.01 && (
+                              <span className="text-red-600 ml-2">
+                                ⚠️ Le total doit être égal à 100%
+                              </span>
                             )}
                           </div>
-                        )
-                      )}
-                      <div className="text-xs text-gray-600 mt-2">
-                        Total:{" "}
-                        {(formData.processor_config.splits || [])
-                          .reduce((sum, s) => sum + (s.percentage || 0), 0)
-                          .toFixed(2)}
-                        %
-                        {Math.abs(
-                          (formData.processor_config.splits || []).reduce(
-                            (sum, s) => sum + (s.percentage || 0),
-                            0
-                          ) - 100
-                        ) > 0.01 && (
-                          <span className="text-red-600 ml-2">
-                            ⚠️ Le total doit être égal à 100%
-                          </span>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Montant du prêt (€)
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.processor_config.loan_amount || 0}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                processor_config: {
+                                  ...formData.processor_config,
+                                  loan_amount: parseFloat(e.target.value),
+                                },
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Taux annuel (%)
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.processor_config.annual_rate || 0}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                processor_config: {
+                                  ...formData.processor_config,
+                                  annual_rate: parseFloat(e.target.value),
+                                },
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Durée (mois)
+                          </label>
+                          <input
+                            type="number"
+                            value={
+                              formData.processor_config.duration_months || 0
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                processor_config: {
+                                  ...formData.processor_config,
+                                  duration_months: parseInt(e.target.value),
+                                },
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            min="1"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Date de début
+                          </label>
+                          <input
+                            type="date"
+                            value={formData.processor_config.start_date || ""}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                processor_config: {
+                                  ...formData.processor_config,
+                                  start_date: e.target.value,
+                                },
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Compte Capital
+                        </label>
+                        <select
+                          value={
+                            formData.processor_config.capital_account_id || ""
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                capital_account_id: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          required
+                        >
+                          <option value="">Sélectionnez un compte</option>
+                          {accounts.map((account) => (
+                            <option
+                              key={account.accountId}
+                              value={account.accountId}
+                            >
+                              {account.name} ({account.category} -{" "}
+                              {account.sub_category})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Compte pour la partie capital du remboursement
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Compte Intérêts
+                        </label>
+                        <select
+                          value={
+                            formData.processor_config.interest_account_id || ""
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                interest_account_id: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          required
+                        >
+                          <option value="">Sélectionnez un compte</option>
+                          {accounts.map((account) => (
+                            <option
+                              key={account.accountId}
+                              value={account.accountId}
+                            >
+                              {account.name} ({account.category} -{" "}
+                              {account.sub_category})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Compte pour la partie intérêts du remboursement
+                        </p>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -849,33 +1081,39 @@ export default function Categorization() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {previewResult.matches.map((match) => (
-                      <div
-                        key={match.transaction_id}
-                        className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">
-                              {match.description}
+                    {previewResult.matches
+                      .sort(
+                        (a, b) =>
+                          new Date(b.date).getTime() -
+                          new Date(a.date).getTime()
+                      )
+                      .map((match) => (
+                        <div
+                          key={match.transaction_id}
+                          className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                {match.description}
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                {new Date(match.date).toLocaleDateString(
+                                  "fr-FR",
+                                  {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              {new Date(match.date).toLocaleDateString(
-                                "fr-FR",
-                                {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                }
-                              )}
+                            <div className="text-lg font-bold text-gray-900 ml-4">
+                              {match.amount.toFixed(2)}€
                             </div>
-                          </div>
-                          <div className="text-lg font-bold text-gray-900 ml-4">
-                            {match.amount.toFixed(2)}€
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
               </div>
@@ -947,7 +1185,10 @@ export default function Categorization() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          {formatSplits(rule.processor_config)}
+                          {formatSplits(
+                            rule.processor_config,
+                            rule.processor_type
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

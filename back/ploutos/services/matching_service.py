@@ -1,6 +1,7 @@
 """Matching Service - Business logic for automatic transaction categorization."""
 
 from datetime import datetime
+from enum import Enum
 from typing import List
 
 from loguru import logger
@@ -9,7 +10,7 @@ from ploutos.db.models import TransactionWithSlaves, TransactionSlaveCreate
 from ploutos.processors.base import get_processor
 
 
-class MatchType:
+class MatchType(Enum):
     CONTAINS = "contains"
     STARTS_WITH = "starts_with"
     EXACT = "exact"
