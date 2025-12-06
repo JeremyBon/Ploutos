@@ -26,7 +26,7 @@ ChartJS.register(
   ChartTooltip,
   ChartLegend
 );
-import { useRouter } from "next/navigation";
+import Navigation from "@/components/Navigation";
 
 interface Account {
   account_id: string;
@@ -92,9 +92,6 @@ interface MonthlySummary {
 }
 
 export default function Home() {
-  const [apiResponse, setApiResponse] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -121,7 +118,6 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [categoryError, setCategoryError] = useState(false);
   const [subCategoryError, setSubCategoryError] = useState(false);
-  const router = useRouter();
 
   const fetchAccounts = async () => {
     try {
@@ -266,36 +262,6 @@ export default function Home() {
     (sum, account) => sum + account.current_amount,
     0
   );
-
-  const handleTestClick = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch("http://localhost:8000/test");
-      const data = await response.json();
-      setApiResponse(data.message);
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-      }, 3000);
-    } catch (error) {
-      setApiResponse("Error connecting to API");
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-      }, 3000);
-      console.error("Error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAccountSettingsClick = () => {
-    router.push("/account-settings");
-  };
-
-  const handleTransactionsClick = () => {
-    router.push("/transactions");
-  };
 
   const getMonthName = (month: number) => {
     const months = [
@@ -562,20 +528,8 @@ export default function Home() {
 
       // Fermer le modal
       handleCloseEditModal();
-
-      // Afficher un message de succès
-      setApiResponse("Transaction mise à jour avec succès");
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-      }, 3000);
     } catch (error) {
       console.error("Error updating transaction:", error);
-      setApiResponse("Erreur lors de la mise à jour de la transaction");
-      setShowToast(true);
-      setTimeout(() => {
-        setShowToast(false);
-      }, 3000);
     } finally {
       setIsSaving(false);
     }
@@ -861,92 +815,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Navigation Bar */}
-      <nav className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold bg-blue-600 text-white px-4 py-2 rounded-lg">
-                Ploutos
-              </h1>
-              <button
-                onClick={handleAccountSettingsClick}
-                className="px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Paramètres du compte
-              </button>
-              <button
-                onClick={handleTransactionsClick}
-                className="px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                  <path
-                    fillRule="evenodd"
-                    d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Transactions
-              </button>
-              <button
-                onClick={() => router.push("/transfers")}
-                className="px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M8 5a1 1 0 100 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z" />
-                </svg>
-                Transferts
-              </button>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={handleTestClick}
-                disabled={isLoading}
-                className={`px-4 py-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2 ${
-                  isLoading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {isLoading ? "Chargement..." : "Tester API"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1381,12 +1250,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-
-            {showToast && (
-              <div className="fixed top-4 right-4 bg-white p-4 rounded-lg shadow-lg border border-gray-200 animate-fade-in">
-                <p className="text-gray-800">{apiResponse}</p>
-              </div>
-            )}
 
             {/* Modal d'édition des transactions */}
             {showEditModal && editingTransaction && (
