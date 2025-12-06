@@ -50,3 +50,5 @@ update_changelog_on_bump = true
 [tool.pytest.ini_options]
 addopts = "-v"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

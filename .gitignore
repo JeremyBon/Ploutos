@@ -11,3 +11,4 @@ data
 !front/.prettierrc.json
 !front/tsconfig.json
 *.ipynb
+*.dump

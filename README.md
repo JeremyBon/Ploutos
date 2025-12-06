@@ -55,6 +55,47 @@ http://localhost:8000/docs
 cd back && poetry run pytest
 ```
 
+## Database Backup & Restore
+
+### Obtenir le mot de passe Supabase
+
+1. Allez sur votre dashboard Supabase
+2. Cliquez sur **Connect** (menu en haut)
+3. Cliquez sur **Reset your database password** pour obtenir/réinitialiser le mot de passe
+4. Copiez le mot de passe affiché
+
+### Faire un dump de la base de données
+
+```bash
+pg_dump \
+  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -Fc \
+  -f backup_$(date +%Y%m%d).dump
+```
+
+### Restaurer depuis un dump
+
+```bash
+pg_restore \
+  -d "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  --clean \
+  --if-exists \
+  backup.dump
+```
+
+Options :
+- `-Fc` : Format custom compressé
+- `--clean` : Supprime les objets existants avant de les recréer
+- `--if-exists` : Ne génère pas d'erreur si l'objet n'existe pas
+
+### Vérifier la connexion
+
+```bash
+psql \
+  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -c "\dt"
+```
+
 ## Code Quality
 
 **Setup:**
