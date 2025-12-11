@@ -1,7 +1,18 @@
 from datetime import datetime
+from enum import Enum
+from typing import List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 from pydantic import field_serializer
+
+
+class MatchType(str, Enum):
+    """Transaction description matching strategy types."""
+
+    CONTAINS = "contains"
+    STARTS_WITH = "starts_with"
+    EXACT = "exact"
+    REGEX = "regex"
 
 
 class Account(BaseModel):
@@ -85,6 +96,18 @@ class TransactionSlave(TransactionSlaveBase):
     slaveId: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class TransactionSlaveWithAccount(TransactionSlave):
+    """Transaction slave avec infos du compte (jointure avec Accounts)."""
+
+    Accounts: Account
+
+
+class TransactionWithSlaves(Transaction):
+    """Transaction avec ses slaves et comptes (pour processors)."""
+
+    TransactionsSlaves: list[TransactionSlaveWithAccount] = Field(default_factory=list)
 
 
 class AccountsSecretsBase(BaseModel):
@@ -172,3 +195,46 @@ class RejectedTransferPair(BaseModel):
     )
     rejected_at: datetime = Field(..., description="Date et heure du rejet")
     rejected_reason: str | None = Field(None, description="Raison du rejet")
+
+
+# =============================================================================
+# Categorization Rules Models
+# =============================================================================
+
+
+class CategorizationRuleBase(BaseModel):
+    """Base model for categorization rules."""
+
+    description: str = Field(
+        ..., min_length=1, description="Human-readable rule description"
+    )
+    match_type: MatchType = Field(
+        ..., description="Matching strategy (contains/starts_with/exact/regex)"
+    )
+    match_value: str = Field(..., min_length=1, description="Pattern to match")
+    account_ids: Optional[List[UUID]] = Field(
+        None, description="Optional: Filter by source account IDs"
+    )
+    priority: int = Field(default=0, description="Rule priority (higher = first)")
+    enabled: bool = Field(default=True, description="Whether rule is active")
+    processor_type: str = Field(
+        default="simple_split", description="Processor type for this rule"
+    )
+    processor_config: dict = Field(..., description="Configuration for the processor")
+
+
+class CategorizationRuleCreate(CategorizationRuleBase):
+    """Create model for categorization rules."""
+
+    pass
+
+
+class CategorizationRule(CategorizationRuleBase):
+    """Full categorization rule model with metadata."""
+
+    ruleId: UUID = Field(..., description="Unique rule identifier")
+    created_at: datetime = Field(..., description="Rule creation timestamp")
+    updated_at: datetime = Field(..., description="Rule last update timestamp")
+    last_applied_at: Optional[datetime] = Field(
+        None, description="Last time rule was applied"
+    )

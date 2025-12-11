@@ -51,6 +51,32 @@ erDiagram
         text rejected_reason
     }
 
+    CategorizationRules {
+        uuid ruleId PK
+        timestamptz created_at
+        timestamp updated_at
+        text description
+        bool enabled
+        int priority
+        text match_type "contains|starts_with|exact|regex"
+        text match_value
+        jsonb account_ids "optional: filter by accounts"
+        text processor_type "simple_split|loan|salary"
+        jsonb processor_config
+        timestamp last_applied_at
+    }
+
+    RuleApplications {
+        uuid applicationId PK
+        timestamptz created_at
+        uuid ruleId FK
+        uuid transactionId FK
+        timestamp applied_at
+        jsonb slaves_created
+        bool success
+        text error_message
+    }
+
     %% Relations entre les tables
     Accounts ||--o{ Transactions : "has"
     Accounts ||--o{ TransactionsSlaves : "has"
@@ -58,6 +84,8 @@ erDiagram
     Transactions ||--o{ TransactionsSlaves : "master_of"
     Transactions ||--o{ RejectedTransferPairs : "rejected_transfer_1"
     Transactions ||--o{ RejectedTransferPairs : "rejected_transfer_2"
+    CategorizationRules ||--o{ RuleApplications : "applied_to"
+    Transactions ||--o{ RuleApplications : "has_rule_applied"
 ```
 
 ## Description des Tables
@@ -103,3 +131,26 @@ Table des paires de transactions de transfert rejetées.
 - **transaction_id_2**: Seconde transaction du transfert
 - **rejected_at**: Date du rejet
 - **rejected_reason**: Raison du rejet
+
+### CategorizationRules
+Table des règles de catégorisation automatique des transactions.
+- **ruleId**: Identifiant unique de la règle
+- **description**: Description de la règle
+- **enabled**: Indique si la règle est active
+- **priority**: Priorité d'application (plus haute = appliquée en premier)
+- **match_type**: Type de matching du libellé (contains, starts_with, exact, regex)
+- **match_value**: Valeur à matcher dans le libellé
+- **account_ids**: JSON array optionnel des comptes concernés (filtre)
+- **processor_type**: Type de processor (simple_split, loan, salary)
+- **processor_config**: Configuration JSON du processor
+- **last_applied_at**: Date de dernière application de la règle
+
+### RuleApplications
+Table des logs d'application des règles de catégorisation.
+- **applicationId**: Identifiant unique de l'application
+- **ruleId**: Référence vers la règle appliquée
+- **transactionId**: Référence vers la transaction traitée
+- **applied_at**: Date d'application de la règle
+- **slaves_created**: JSON array des IDs des slaves créées
+- **success**: Indique si l'application a réussi
+- **error_message**: Message d'erreur en cas d'échec

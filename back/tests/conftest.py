@@ -71,6 +71,26 @@ def sample_unknown_account():
 
 
 @pytest.fixture
+def correct_unknown_account():
+    """Compte Unknown avec les valeurs correctes pour la validation des processors.
+
+    ATTENTION: Diffère de sample_unknown_account qui a category="Virtual" et
+    sub_category="Uncategorized". La validation dans TransactionProcessor._validate_transaction
+    exige category="Unknown" et sub_category="Unknown".
+    """
+    return {
+        "accountId": "99999999-9999-9999-9999-999999999999",
+        "name": "Unknown",
+        "category": "Unknown",
+        "sub_category": "Unknown",
+        "is_real": False,
+        "original_amount": 0.0,
+        "created_at": "2025-01-01T00:00:00",
+        "updated_at": "2025-01-01T00:00:00",
+    }
+
+
+@pytest.fixture
 def sample_transfer_pair(sample_accounts, sample_unknown_account):
     """Paire de transactions valides représentant un transfert.
 

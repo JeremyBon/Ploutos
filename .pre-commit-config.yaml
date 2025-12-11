@@ -33,4 +33,10 @@ repos:
         language: system
         files: ^front/src/.*\.[jt]sx?$
         pass_filenames: true
+      - id: commitlint
+        name: Commitlint
+        entry: bash -c 'cd front && npx commitlint --edit "$1"' --
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false
 

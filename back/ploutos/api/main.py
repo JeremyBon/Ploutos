@@ -1,5 +1,12 @@
 import uvicorn
-from ploutos.api.routers import accounts, test, transactions, transfers
+from ploutos.api.routers import (
+    accounts,
+    categorization_rules,
+    matching,
+    test,
+    transactions,
+    transfers,
+)
 from ploutos.config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +33,8 @@ app.include_router(test.router, tags=["test"])
 app.include_router(accounts.router, tags=["accounts"])
 app.include_router(transactions.router, tags=["transactions"])
 app.include_router(transfers.router, tags=["transfers"])
+app.include_router(matching.router, tags=["matching"])
+app.include_router(categorization_rules.router, tags=["categorization-rules"])
 
 
 @app.get("/")

@@ -55,12 +55,53 @@ http://localhost:8000/docs
 cd back && poetry run pytest
 ```
 
+## Database Backup & Restore
+
+### Obtenir le mot de passe Supabase
+
+1. Allez sur votre dashboard Supabase
+2. Cliquez sur **Connect** (menu en haut)
+3. Cliquez sur **Reset your database password** pour obtenir/réinitialiser le mot de passe
+4. Copiez le mot de passe affiché
+
+### Faire un dump de la base de données
+
+```bash
+pg_dump \
+  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -Fc \
+  -f backup_$(date +%Y%m%d).dump
+```
+
+### Restaurer depuis un dump
+
+```bash
+pg_restore \
+  -d "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  --clean \
+  --if-exists \
+  backup.dump
+```
+
+Options :
+- `-Fc` : Format custom compressé
+- `--clean` : Supprime les objets existants avant de les recréer
+- `--if-exists` : Ne génère pas d'erreur si l'objet n'existe pas
+
+### Vérifier la connexion
+
+```bash
+psql \
+  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -c "\dt"
+```
+
 ## Code Quality
 
 **Setup:**
 ```bash
 pip install ruff pre-commit
-pre-commit install
+pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 **Checks:**
@@ -69,8 +110,27 @@ pre-commit install
 - Pre-commit: Ruff (Python) + Prettier (JS/TS)
 - CI: Checks automatiques sur chaque push
 
-##### Commit
-Commit message: Please use [Conventionnal Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+## Commits
+
+Format [Conventional Commits](https://www.conventionalcommits.org/) requis : `[emoji] <type>(<scope>): <description>`
+
+L'emoji est optionnel et purement décoratif. Exemples :
+- `feat: add user authentication`
+- `✨ feat: add user authentication`
+- `fix(api): resolve timeout issue`
+
+| Type       | Description             | Version |
+|------------|-------------------------|---------|
+| `feat`     | Nouvelle fonctionnalité | minor   |
+| `fix`      | Correction de bug       | patch   |
+| `docs`     | Documentation           | -       |
+| `refactor` | Refactoring             | -       |
+| `test`     | Tests                   | -       |
+| `chore`    | Maintenance             | -       |
+| `ci`       | CI/CD                   | -       |
+| `perf`     | Performance             | patch   |
+
+Breaking change : `feat!: message` ou `BREAKING CHANGE:` dans le footer → major
 
 
 #### Bank Aggregator
