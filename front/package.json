@@ -18,10 +18,12 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^17.0.0",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@commitlint/config-conventional": "^17.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.1.8",
     "postcss": "^8",

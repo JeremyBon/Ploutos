@@ -101,7 +101,7 @@ psql \
 **Setup:**
 ```bash
 pip install ruff pre-commit
-pre-commit install
+pre-commit install --hook-type pre-commit --hook-type commit-msg
 ```
 
 **Checks:**
@@ -110,8 +110,27 @@ pre-commit install
 - Pre-commit: Ruff (Python) + Prettier (JS/TS)
 - CI: Checks automatiques sur chaque push
 
-##### Commit
-Commit message: Please use [Conventionnal Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+## Commits
+
+Format [Conventional Commits](https://www.conventionalcommits.org/) requis : `[emoji] <type>(<scope>): <description>`
+
+L'emoji est optionnel et purement décoratif. Exemples :
+- `feat: add user authentication`
+- `✨ feat: add user authentication`
+- `fix(api): resolve timeout issue`
+
+| Type       | Description             | Version |
+|------------|-------------------------|---------|
+| `feat`     | Nouvelle fonctionnalité | minor   |
+| `fix`      | Correction de bug       | patch   |
+| `docs`     | Documentation           | -       |
+| `refactor` | Refactoring             | -       |
+| `test`     | Tests                   | -       |
+| `chore`    | Maintenance             | -       |
+| `ci`       | CI/CD                   | -       |
+| `perf`     | Performance             | patch   |
+
+Breaking change : `feat!: message` ou `BREAKING CHANGE:` dans le footer → major
 
 
 #### Bank Aggregator
