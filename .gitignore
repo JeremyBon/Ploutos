@@ -2,10 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.vscode/*
+back/.vscode/*
 
 data
-*.json
 !front/package.json
 !front/package-lock.json
 !front/.prettierrc.json
