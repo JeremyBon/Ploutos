@@ -59,7 +59,7 @@ export default function Navigation() {
                     clipRule="evenodd"
                   />
                 </svg>
-                Paramètres du compte
+                Paramètres comptes
               </button>
               <button
                 onClick={() => router.push("/transactions")}
