@@ -3,7 +3,6 @@ from typing import List, Optional
 from uuid import UUID
 
 from ploutos.api.deps import SessionDep
-from ploutos.api.routers.utils import extract_nested_field
 from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
@@ -63,69 +62,20 @@ async def get_transactions(
 ):
     """Get transactions with optional date filtering"""
     try:
-        query = db.table("Transactions").select(
-            """
-            *,
-            Accounts!left (
-                name,
-                is_real
-            ),
-            TransactionsSlaves (
-                masterId,
-                slaveId,
-                type,
-                amount,
-                date,
-                accountId,
-                Accounts (
-                    name,
-                    is_real
-                )
-            )
-        """
-        )
+        response = db.rpc(
+            "get_transactions",
+            {
+                "p_date_from": date_from,
+                "p_date_to": date_to,
+                "p_account_id": account_id,
+            },
+        ).execute()
 
-        if date_from and date_to:
-            # Pour Supabase, on utilise la syntaxe de filtrage par mois
-            query = query.filter("date", "gte", date_from).filter(
-                "date", "lte", date_to
-            )
-        if account_id:
-            logger.info(f"Account ID: {account_id}")
-            query = query.or_(
-                f"accountId.eq.{account_id}",
-                f"TransactionsSlaves.accountId.eq.{account_id}",
-            )
-        logger.info(f"Query: {query}")
-
-        transactions_resp = query.execute()
-
-        if not transactions_resp.data:
+        if not response.data:
             return []
-        transactions_resp.data = extract_nested_field(
-            data=transactions_resp.data,
-            nested_key="Accounts",
-            field_keys=["name", "is_real"],
-            new_keys=["masterAccountName", "masterAccountIsReal"],
-        )
-        for transaction in transactions_resp.data:
-            transaction["TransactionsSlaves"] = extract_nested_field(
-                data=transaction["TransactionsSlaves"],
-                nested_key="Accounts",
-                field_keys=["name", "is_real"],
-                new_keys=["slaveAccountName", "slaveAccountIsReal"],
-            )
-        logger.info(f"{len(transactions_resp.data)} transactions found")
 
-        # Debug: Log first transaction to check date format
-        if transactions_resp.data:
-            logger.info(f"🔍 First transaction sample: {transactions_resp.data[0]}")
-            if transactions_resp.data[0].get("TransactionsSlaves"):
-                logger.info(
-                    f"🔍 First slave sample: {transactions_resp.data[0]['TransactionsSlaves'][0]}"
-                )
-
-        return transactions_resp.data
+        logger.info(f"{len(response.data)} transactions found")
+        return response.data
     except Exception as e:
         logger.error(f"Error getting transactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
