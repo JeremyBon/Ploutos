@@ -19,6 +19,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Debug Release Please Outputs
+        run: |
+          echo "pr: ${{ steps.release.outputs.pr }}"
+          echo "prs_created: ${{ steps.release.outputs.prs_created }}"
+          echo "releases_created: ${{ steps.release.outputs.releases_created }}"
+          echo "all outputs: ${{ toJSON(steps.release.outputs) }}"
+
       - name: Enable Auto-Merge on Release PR
         if: ${{ steps.release.outputs.pr }}
         uses: peter-evans/enable-pull-request-automerge@v3
