@@ -65,6 +65,8 @@ export default function Transfers() {
 
   // État pour le filtrage par mois (transferts confirmés uniquement)
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
 
   const fetchCandidates = async () => {
     try {
@@ -572,32 +574,148 @@ export default function Transfers() {
             <h3 className="text-2xl font-semibold text-gray-800">
               Transferts confirmés
             </h3>
-            <div className="flex items-center gap-2">
-              <input
-                type="month"
-                value={selectedMonth === "all" ? "" : selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value || "all")}
-                className="w-36 px-2 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              {selectedMonth !== "all" && (
-                <button
-                  onClick={() => setSelectedMonth("all")}
-                  className="text-gray-400 hover:text-gray-600 -ml-1"
-                  title="Afficher tous les mois"
+            <div className="relative flex items-center gap-2">
+              <button
+                onClick={() => setShowMonthPicker(!showMonthPicker)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <span className="text-gray-700">
+                  {selectedMonth === "all"
+                    ? "Tous les mois"
+                    : new Date(
+                        parseInt(selectedMonth.split("-")[0]),
+                        parseInt(selectedMonth.split("-")[1]) - 1
+                      ).toLocaleDateString("fr-FR", {
+                        month: "long",
+                        year: "numeric",
+                      })}
+                </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`h-4 w-4 text-gray-400 transition-transform ${showMonthPicker ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {showMonthPicker && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => setPickerYear(pickerYear - 1)}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5 text-gray-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 19l-7-7 7-7"
+                        />
+                      </svg>
+                    </button>
+                    <span className="font-semibold text-gray-800">
+                      {pickerYear}
+                    </span>
+                    <button
+                      onClick={() => setPickerYear(pickerYear + 1)}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5 text-gray-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {[
+                      "Jan",
+                      "Fév",
+                      "Mar",
+                      "Avr",
+                      "Mai",
+                      "Juin",
+                      "Juil",
+                      "Août",
+                      "Sep",
+                      "Oct",
+                      "Nov",
+                      "Déc",
+                    ].map((month, index) => {
+                      const monthValue = `${pickerYear}-${String(index + 1).padStart(2, "0")}`;
+                      const isSelected = selectedMonth === monthValue;
+                      return (
+                        <button
+                          key={month}
+                          onClick={() => {
+                            setSelectedMonth(monthValue);
+                            setShowMonthPicker(false);
+                          }}
+                          className={`px-3 py-2 text-sm rounded transition-colors ${
+                            isSelected
+                              ? "bg-blue-600 text-white"
+                              : "hover:bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {month}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setSelectedMonth("all");
+                        setShowMonthPicker(false);
+                      }}
+                      className={`w-full px-3 py-2 text-sm rounded transition-colors ${
+                        selectedMonth === "all"
+                          ? "bg-gray-200 text-gray-800"
+                          : "hover:bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      Tous les mois
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
