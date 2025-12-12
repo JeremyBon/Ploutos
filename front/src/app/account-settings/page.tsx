@@ -46,11 +46,14 @@ export default function AccountSettings() {
   const [activeTab, setActiveTab] = useState<"real" | "virtual">("real");
   const [activeFilterKey, setActiveFilterKey] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("amount-desc");
+  const [showArchived, setShowArchived] = useState(false);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = async (includeArchived: boolean = false) => {
     try {
       const [accountsResponse, currentAmountsResponse] = await Promise.all([
-        fetch("http://localhost:8000/accounts"),
+        fetch(
+          `http://localhost:8000/accounts?include_archived=${includeArchived}`
+        ),
         fetch("http://localhost:8000/accounts/current-amounts"),
       ]);
 
@@ -92,8 +95,8 @@ export default function AccountSettings() {
   };
 
   useEffect(() => {
-    fetchAccounts();
-  }, []);
+    fetchAccounts(showArchived);
+  }, [showArchived]);
 
   useEffect(() => {
     if (toastMessage) {
@@ -131,7 +134,7 @@ export default function AccountSettings() {
       );
       setShowAccountModal(false);
       resetForm();
-      fetchAccounts();
+      fetchAccounts(showArchived);
     } catch (error) {
       console.error("Erreur lors de la création/mise à jour du compte:", error);
       setError("Une erreur est survenue. Veuillez réessayer.");
@@ -158,10 +161,38 @@ export default function AccountSettings() {
       }
 
       setToastMessage("Compte supprimé avec succès");
-      fetchAccounts();
+      fetchAccounts(showArchived);
     } catch (error) {
       console.error("Erreur lors de la suppression du compte:", error);
       setError("Une erreur est survenue lors de la suppression.");
+    }
+  };
+
+  const handleArchive = async (
+    accountId: string,
+    isCurrentlyActive: boolean
+  ) => {
+    try {
+      const response = await fetch(
+        `http://localhost:8000/accounts/${accountId}/archive`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      setToastMessage(
+        isCurrentlyActive
+          ? "Compte archivé avec succès"
+          : "Compte désarchivé avec succès"
+      );
+      fetchAccounts(showArchived);
+    } catch (error) {
+      console.error("Erreur lors de l'archivage du compte:", error);
+      setError("Une erreur est survenue lors de l'archivage.");
     }
   };
 
@@ -216,6 +247,21 @@ export default function AccountSettings() {
     });
 
     return hierarchy;
+  }, [accounts, activeTab]);
+
+  // Count accounts per category for navigation
+  const accountCounts = useMemo(() => {
+    const filtered = accounts.filter(
+      (acc) => acc.is_real === (activeTab === "real")
+    );
+    const counts: Record<string, number> = { all: filtered.length };
+
+    filtered.forEach((acc) => {
+      const categoryKey = `cat-${normalizeKey(acc.category)}`;
+      counts[categoryKey] = (counts[categoryKey] || 0) + 1;
+    });
+
+    return counts;
   }, [accounts, activeTab]);
 
   // Filter and sort accounts
@@ -383,13 +429,16 @@ export default function AccountSettings() {
               {/* All accounts link */}
               <button
                 onClick={() => setActiveFilterKey("all")}
-                className={`w-full text-left flex items-center p-2 rounded-lg transition duration-150 ${
+                className={`w-full text-left flex items-center justify-between p-2 rounded-lg transition duration-150 ${
                   activeFilterKey === "all"
                     ? "bg-blue-100 text-blue-800 font-semibold"
                     : "hover:bg-gray-100"
                 }`}
               >
-                Tous les Comptes
+                <span>Tous les Comptes</span>
+                <span className="text-xs text-gray-400">
+                  {accountCounts.all}
+                </span>
               </button>
 
               {/* Category hierarchy */}
@@ -401,13 +450,16 @@ export default function AccountSettings() {
                     <button
                       key={category}
                       onClick={() => setActiveFilterKey(categoryKey)}
-                      className={`w-full text-left flex items-center p-2 rounded-lg transition duration-150 ${
+                      className={`w-full text-left flex items-center justify-between p-2 rounded-lg transition duration-150 ${
                         activeFilterKey === categoryKey
                           ? "bg-blue-100 text-blue-800 font-semibold"
                           : "hover:bg-gray-100"
                       }`}
                     >
-                      {category}
+                      <span>{category}</span>
+                      <span className="text-xs text-gray-400">
+                        {accountCounts[categoryKey] || 0}
+                      </span>
                     </button>
                   );
                 })}
@@ -422,24 +474,41 @@ export default function AccountSettings() {
                 {getViewTitle()}
               </h2>
 
-              {/* Sort */}
-              <div className="flex items-center space-x-2 text-gray-600">
-                <label
-                  htmlFor="sort"
-                  className="text-sm font-medium hidden sm:block"
-                >
-                  Trier par :
+              <div className="flex items-center gap-6">
+                {/* Show archived toggle */}
+                <label className="flex items-center cursor-pointer text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium">
+                    Afficher les archivés
+                  </span>
                 </label>
-                <select
-                  id="sort"
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  <option value="amount-desc">Montant (Décroissant)</option>
-                  <option value="name-asc">Nom (A-Z)</option>
-                  <option value="category">Catégorie</option>
-                </select>
+
+                {/* Sort */}
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <label
+                    htmlFor="sort"
+                    className="text-sm font-medium hidden sm:block"
+                  >
+                    Trier par :
+                  </label>
+                  <select
+                    id="sort"
+                    value={sortOption}
+                    onChange={(e) =>
+                      setSortOption(e.target.value as SortOption)
+                    }
+                    className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    <option value="amount-desc">Montant (Décroissant)</option>
+                    <option value="name-asc">Nom (A-Z)</option>
+                    <option value="category">Catégorie</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -534,6 +603,14 @@ export default function AccountSettings() {
                           className="text-sm text-blue-600 hover:text-blue-800 font-medium transition duration-150"
                         >
                           Modifier
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleArchive(account.accountId, account.active)
+                          }
+                          className="text-sm text-amber-600 hover:text-amber-800 font-medium transition duration-150"
+                        >
+                          {account.active ? "Archiver" : "Désarchiver"}
                         </button>
                         <button
                           onClick={() => handleDelete(account.accountId)}

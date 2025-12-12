@@ -17,12 +17,16 @@ class AccountAmount(BaseModel):
     sub_category: str
     current_amount: float
     is_real: bool
+    active: bool
     max_date: Optional[datetime] = None
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
-async def get_accounts(db: SessionDep):
-    response = db.table("Accounts").select("*").execute()
+async def get_accounts(db: SessionDep, include_archived: bool = False):
+    query = db.table("Accounts").select("*")
+    if not include_archived:
+        query = query.eq("active", True)
+    response = query.execute()
     return response.data
 
 
@@ -57,6 +61,7 @@ async def create_account(account: AccountCreate, db: SessionDep):
                 "sub_category": account.sub_category,
                 "is_real": account.is_real,
                 "original_amount": account.original_amount,
+                "active": account.active,
                 "created_at": current_time,
                 "updated_at": current_time,
             }
@@ -81,6 +86,7 @@ async def update_account(account_id: str, account: AccountUpdate, db: SessionDep
                 "sub_category": account.sub_category,
                 "is_real": account.is_real,
                 "original_amount": account.original_amount,
+                "active": account.active,
                 "updated_at": current_time,
             }
         )
@@ -105,6 +111,31 @@ async def delete_account(account_id: str, db: SessionDep):
 
     logger.debug(f"Deleted account: {response}")
     return {"message": "Account deleted successfully"}
+
+
+@router.patch("/accounts/{account_id}/archive", response_model=AccountResponse)
+async def toggle_archive_account(account_id: str, db: SessionDep):
+    # Get current account state
+    current = (
+        db.table("Accounts").select("active").eq("accountId", account_id).execute()
+    )
+
+    if not current.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    current_active = current.data[0]["active"]
+    current_time = datetime.now().isoformat()
+
+    # Toggle active state
+    response = (
+        db.table("Accounts")
+        .update({"active": not current_active, "updated_at": current_time})
+        .eq("accountId", account_id)
+        .execute()
+    )
+
+    logger.debug(f"Toggled archive for account: {response}")
+    return response.data[0]
 
 
 @router.get("/accounts/current-amounts", response_model=list[AccountAmount])
@@ -148,6 +179,7 @@ async def get_current_amounts(db: SessionDep):
             current_amount=amounts.get(account["accountId"], 0)
             + account["original_amount"],
             is_real=account["is_real"],
+            active=account["active"],
             max_date=max_dates.get(account["accountId"], None),
         )
         for account in accounts_response.data
