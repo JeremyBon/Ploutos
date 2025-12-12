@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 .vscode/*
 back/.vscode/*
+.DS_Store
 
 data
 !front/package.json
