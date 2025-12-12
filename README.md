@@ -116,7 +116,7 @@ Format [Conventional Commits](https://www.conventionalcommits.org/) requis : `[e
 
 L'emoji est optionnel et purement décoratif. Exemples :
 - `feat: add user authentication`
-- `✨ feat: add user authentication`
+- `feat: ✨  add user authentication`
 - `fix(api): resolve timeout issue`
 
 | Type       | Description             | Version |
