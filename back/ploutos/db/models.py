@@ -24,6 +24,7 @@ class Account(BaseModel):
     sub_category: str
     is_real: bool
     original_amount: float
+    active: bool
 
 
 class AccountBase(BaseModel):
@@ -36,6 +37,7 @@ class AccountBase(BaseModel):
     )
     is_real: bool = Field(..., description="Whether this is a real account")
     original_amount: float = Field(..., description="Original amount of the account")
+    active: bool = Field(default=True, description="Whether this account is active")
 
 
 class AccountCreate(AccountBase):
@@ -59,6 +61,7 @@ class AccountAmount(BaseModel):
     sub_category: str
     current_amount: float
     is_real: bool
+    active: bool
     max_date: datetime
 
 
