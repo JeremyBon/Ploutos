@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Navigation from "@/components/Navigation";
 
 interface Transaction {
@@ -63,6 +63,9 @@ export default function Transfers() {
     useState<TransferCandidate | null>(null);
   const [rejectReason, setRejectReason] = useState<string>("");
 
+  // État pour le filtrage par mois (transferts confirmés uniquement)
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
   const fetchCandidates = async () => {
     try {
       setLoadingCandidates(true);
@@ -102,6 +105,49 @@ export default function Transfers() {
     fetchCandidates();
     fetchTransfers();
   }, []);
+
+  // Tri des candidats du plus récent au plus ancien
+  const sortedCandidates = useMemo(() => {
+    return [...candidates].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [candidates]);
+
+  // Filtrage et tri des transferts confirmés
+  const filteredAndSortedTransfers = useMemo(() => {
+    let result = [...transfers];
+
+    // Filtrage par mois si activé
+    if (selectedMonth !== "all") {
+      const [year, month] = selectedMonth.split("-");
+      result = result.filter((t) => {
+        const date = new Date(t.date);
+        return (
+          date.getFullYear() === parseInt(year) &&
+          date.getMonth() + 1 === parseInt(month)
+        );
+      });
+    }
+
+    // Tri du plus récent au plus ancien
+    return result.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [transfers, selectedMonth]);
+
+  // Grouper les transferts par mois pour l'affichage
+  const transfersByMonth = useMemo(() => {
+    const groups: { [key: string]: Transfer[] } = {};
+    filteredAndSortedTransfers.forEach((t) => {
+      const date = new Date(t.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      if (!groups[monthKey]) {
+        groups[monthKey] = [];
+      }
+      groups[monthKey].push(t);
+    });
+    return groups;
+  }, [filteredAndSortedTransfers]);
 
   const handleMergeClick = (candidate: TransferCandidate) => {
     setSelectedCandidate(candidate);
@@ -300,7 +346,7 @@ export default function Transfers() {
               </div>
             ) : (
               <div className="space-y-4">
-                {candidates.map((candidate, index) => {
+                {sortedCandidates.map((candidate, index) => {
                   const pairId = `${candidate.credit_transaction.transactionId}-${candidate.debit_transaction.transactionId}`;
                   const isMerging = mergingPair === pairId;
                   const isRejecting = rejectingPair === pairId;
@@ -522,78 +568,140 @@ export default function Transfers() {
 
         {/* Transferts existants */}
         <div>
-          <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-            Transferts confirmés
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-2xl font-semibold text-gray-800">
+              Transferts confirmés
+            </h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={selectedMonth === "all" ? "" : selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value || "all")}
+                className="w-36 px-2 py-1.5 text-sm border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              {selectedMonth !== "all" && (
+                <button
+                  onClick={() => setSelectedMonth("all")}
+                  className="text-gray-400 hover:text-gray-600 -ml-1"
+                  title="Afficher tous les mois"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             {loadingTransfers ? (
               <div className="text-center py-8 text-gray-600">
                 Chargement des transferts...
               </div>
-            ) : transfers.length === 0 ? (
+            ) : filteredAndSortedTransfers.length === 0 ? (
               <div className="text-center py-8 text-gray-600">
-                <p className="text-lg font-medium">Aucun transfert confirmé</p>
+                <p className="text-lg font-medium">
+                  {transfers.length === 0
+                    ? "Aucun transfert confirmé"
+                    : "Aucun transfert pour ce mois"}
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {transfers.map((transfer) => {
-                  const destinationSlave = transfer.TransactionsSlaves.find(
-                    (s) => s.slaveAccountIsReal
-                  );
+              <div className="space-y-6">
+                {Object.entries(transfersByMonth)
+                  .sort(([a], [b]) => b.localeCompare(a))
+                  .map(([monthKey, monthTransfers]) => {
+                    const [year, m] = monthKey.split("-");
+                    const monthDate = new Date(parseInt(year), parseInt(m) - 1);
+                    const monthLabel = monthDate.toLocaleDateString("fr-FR", {
+                      month: "long",
+                      year: "numeric",
+                    });
 
-                  return (
-                    <div
-                      key={transfer.transactionId}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-800 mb-1">
-                            {transfer.description}
-                          </h4>
-                          <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <span>
-                              {new Date(transfer.date).toLocaleDateString(
-                                "fr-FR"
-                              )}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {transfer.masterAccountName}
-                              </span>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4 text-blue-600"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M13 7l5 5m0 0l-5 5m5-5H6"
-                                />
-                              </svg>
-                              <span className="font-medium">
-                                {destinationSlave?.slaveAccountName ||
-                                  "Compte inconnu"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-blue-600">
-                            {transfer.amount.toFixed(2)}€
-                          </p>
-                          <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mt-1">
-                            Transfert
+                    return (
+                      <div key={monthKey}>
+                        {/* Séparateur de mois */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="h-px flex-1 bg-gray-200"></div>
+                          <span className="text-sm font-semibold text-gray-500 uppercase">
+                            {monthLabel}
                           </span>
+                          <div className="h-px flex-1 bg-gray-200"></div>
+                        </div>
+
+                        {/* Transferts du mois */}
+                        <div className="space-y-3">
+                          {monthTransfers.map((transfer) => {
+                            const destinationSlave =
+                              transfer.TransactionsSlaves.find(
+                                (s) => s.slaveAccountIsReal
+                              );
+
+                            return (
+                              <div
+                                key={transfer.transactionId}
+                                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-800 mb-1">
+                                      {transfer.description}
+                                    </h4>
+                                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                                      <span>
+                                        {new Date(
+                                          transfer.date
+                                        ).toLocaleDateString("fr-FR")}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">
+                                          {transfer.masterAccountName}
+                                        </span>
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          className="h-4 w-4 text-blue-600"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M13 7l5 5m0 0l-5 5m5-5H6"
+                                          />
+                                        </svg>
+                                        <span className="font-medium">
+                                          {destinationSlave?.slaveAccountName ||
+                                            "Compte inconnu"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold text-blue-600">
+                                      {transfer.amount.toFixed(2)}€
+                                    </p>
+                                    <span className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium mt-1">
+                                      Transfert
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             )}
           </div>

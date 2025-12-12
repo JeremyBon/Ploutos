@@ -80,6 +80,7 @@ interface MonthlySummaryItem {
   sub_category: string;
   total_amount: number;
   transaction_count: number;
+  latest_date: string;
 }
 
 interface MonthlySummary {
@@ -118,6 +119,8 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [categoryError, setCategoryError] = useState(false);
   const [subCategoryError, setSubCategoryError] = useState(false);
+  const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const fetchAccounts = async () => {
     try {
@@ -172,7 +175,7 @@ export default function Home() {
   }, [selectedYear, selectedMonth]);
 
   // Fonction pour traiter les transactions et créer le résumé mensuel
-  const processTransactionsToSummary = (): MonthlySummary => {
+  const monthlySummary = useMemo((): MonthlySummary => {
     const revenuesMap = new Map<string, MonthlySummaryItem>();
     const expensesMap = new Map<string, MonthlySummaryItem>();
 
@@ -203,6 +206,9 @@ export default function Home() {
               const existing = targetMap.get(accountId)!;
               existing.total_amount += amount;
               existing.transaction_count += 1;
+              if (slave.date > existing.latest_date) {
+                existing.latest_date = slave.date;
+              }
             } else {
               // Récupérer les informations du compte depuis la liste des comptes
               const account = accounts.find(
@@ -215,6 +221,7 @@ export default function Home() {
                 sub_category: account?.sub_category || "Inconnu",
                 total_amount: amount,
                 transaction_count: 1,
+                latest_date: slave.date,
               });
             }
           } else if (isExpense) {
@@ -223,6 +230,9 @@ export default function Home() {
               const existing = targetMap.get(accountId)!;
               existing.total_amount += amount;
               existing.transaction_count += 1;
+              if (slave.date > existing.latest_date) {
+                existing.latest_date = slave.date;
+              }
             } else {
               // Récupérer les informations du compte depuis la liste des comptes
               const account = accounts.find(
@@ -235,6 +245,7 @@ export default function Home() {
                 sub_category: account?.sub_category || "Inconnu",
                 total_amount: amount,
                 transaction_count: 1,
+                latest_date: slave.date,
               });
             }
           }
@@ -242,21 +253,28 @@ export default function Home() {
       });
     });
 
+    const sortFn = (a: MonthlySummaryItem, b: MonthlySummaryItem) => {
+      let comparison: number;
+      if (sortBy === "date") {
+        comparison = a.latest_date.localeCompare(b.latest_date);
+      } else {
+        comparison = a.total_amount - b.total_amount;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    };
+
+    const sortedRevenues = Array.from(revenuesMap.values()).sort(sortFn);
+    const sortedExpenses = Array.from(expensesMap.values()).sort(sortFn);
+
     return {
-      revenues: Array.from(revenuesMap.values()).sort(
-        (a, b) => b.total_amount - a.total_amount
-      ),
-      expenses: Array.from(expensesMap.values()).sort(
-        (a, b) => b.total_amount - a.total_amount
-      ),
+      revenues: sortedRevenues,
+      expenses: sortedExpenses,
       period: {
         year: selectedYear,
         month: selectedMonth,
       },
     };
-  };
-
-  const monthlySummary = processTransactionsToSummary();
+  }, [transactions, accounts, selectedYear, selectedMonth, sortBy, sortOrder]);
 
   const totalAssets = accounts.reduce(
     (sum, account) => sum + account.current_amount,
@@ -326,9 +344,15 @@ export default function Home() {
       });
     });
 
-    return detailedTransactions.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    return detailedTransactions.sort((a, b) => {
+      let comparison: number;
+      if (sortBy === "date") {
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else {
+        comparison = a.amount - b.amount;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
   };
 
   // Fonction pour gérer le clic sur une catégorie
@@ -956,6 +980,53 @@ export default function Home() {
                   Aujourd&apos;hui
                 </button>
               </div>
+            </div>
+
+            {/* Sort Filter */}
+            <div className="flex items-center gap-4 mb-4">
+              <span className="text-sm text-gray-600">Trier par :</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSortBy("amount")}
+                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                    sortBy === "amount"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  Montant
+                </button>
+                <button
+                  onClick={() => setSortBy("date")}
+                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                    sortBy === "date"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  Date
+                </button>
+              </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "desc" ? "asc" : "desc")
+                }
+                className="p-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                title={sortOrder === "desc" ? "Décroissant" : "Croissant"}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`h-4 w-4 text-gray-600 transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
             </div>
 
             {/* Monthly Summary Cards and Chart */}

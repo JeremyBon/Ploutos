@@ -22,9 +22,6 @@ jobs:
         if: ${{ steps.release.outputs.pr }}
         uses: peter-evans/enable-pull-request-automerge@v3
         with:
-          # Le jeton d'authentification. Le GITHUB_TOKEN par défaut suffit si 'pull-requests: write' est défini.
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Le numéro de la PR est donné par la sortie de l'étape 'release-please-action'
           pull-request-number: ${{ steps.release.outputs.pr }}
-          # Spécifie la méthode de fusion (Squash and merge, la méthode par défaut de release-please)
           merge-method: squash
