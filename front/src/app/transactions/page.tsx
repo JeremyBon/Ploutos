@@ -1,7 +1,104 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+
+// Icons components
+const FilterIcon = () => (
+  <svg
+    className="w-5 h-5 text-blue-600"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+    />
+  </svg>
+);
+
+const ChevronIcon = ({ isOpen }: { isOpen: boolean }) => (
+  <svg
+    className={`w-5 h-5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M19 9l-7 7-7-7"
+    />
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg
+    className="w-4 h-4 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+    />
+  </svg>
+);
+
+const SortIcon = () => (
+  <svg
+    className="w-4 h-4 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+    />
+  </svg>
+);
+
+const CurrencyIcon = () => (
+  <svg
+    className="w-4 h-4 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M14.121 15.536c-1.171 1.952-3.07 1.952-4.242 0-1.172-1.953-1.172-5.119 0-7.072 1.171-1.952 3.07-1.952 4.242 0M8 10.5h4m-4 3h4m9-1.5a9 9 0 11-18 0 9 9 0 0118 0z"
+    />
+  </svg>
+);
+
+const ResetIcon = () => (
+  <svg
+    className="w-4 h-4"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+    />
+  </svg>
+);
 
 interface Account {
   accountId: string;
@@ -60,6 +157,40 @@ export default function Transactions() {
   const [editedTransaction, setEditedTransaction] =
     useState<Transaction | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [sortBy, setSortBy] = useState<"date" | "amount">("date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [amountMin, setAmountMin] = useState<string>("");
+  const [amountMax, setAmountMax] = useState<string>("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+
+  // Count active filters
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedAccount) count++;
+    if (dateFilter !== "all") count++;
+    if (amountMin || amountMax) count++;
+    if (sortBy !== "date" || sortDirection !== "desc") count++;
+    return count;
+  }, [
+    selectedAccount,
+    dateFilter,
+    amountMin,
+    amountMax,
+    sortBy,
+    sortDirection,
+  ]);
+
+  const resetFilters = () => {
+    setSelectedAccount("");
+    setDateFilter("month");
+    setSelectedMonth("2023-04");
+    setCustomDateFrom("");
+    setCustomDateTo("");
+    setAmountMin("");
+    setAmountMax("");
+    setSortBy("date");
+    setSortDirection("desc");
+  };
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -153,6 +284,35 @@ export default function Transactions() {
     loadData();
   }, [fetchAccounts, fetchTransactions]);
 
+  const sortedTransactions = useMemo(() => {
+    let filtered = [...transactions];
+
+    // Filtre par montant
+    if (amountMin !== "") {
+      const min = parseFloat(amountMin);
+      if (!isNaN(min)) {
+        filtered = filtered.filter((t) => t.amount >= min);
+      }
+    }
+    if (amountMax !== "") {
+      const max = parseFloat(amountMax);
+      if (!isNaN(max)) {
+        filtered = filtered.filter((t) => t.amount <= max);
+      }
+    }
+
+    // Tri
+    return filtered.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "date") {
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else if (sortBy === "amount") {
+        comparison = a.amount - b.amount;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [transactions, sortBy, sortDirection, amountMin, amountMax]);
+
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setEditedTransaction(transaction);
@@ -222,76 +382,206 @@ export default function Transactions() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-8">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-gray-800">Transactions</h2>
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col">
-              <label
-                htmlFor="account"
-                className="text-sm font-medium text-gray-700 mb-1"
-              >
-                Compte
-              </label>
-              <select
-                id="account"
-                value={selectedAccount}
-                onChange={(e) => setSelectedAccount(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
-              >
-                <option value="">Tous les comptes</option>
-                {accounts.map((account) => (
-                  <option key={account.accountId} value={account.accountId}>
-                    {account.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>
+              {sortedTransactions.length} transaction
+              {sortedTransactions.length > 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
 
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                Période
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={dateFilter}
-                  onChange={(e) =>
-                    setDateFilter(e.target.value as "month" | "custom" | "all")
-                  }
-                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="month">Par mois</option>
-                  <option value="custom">Période personnalisée</option>
-                  <option value="all">Toutes les dates</option>
-                </select>
-
-                {dateFilter === "month" && (
-                  <input
-                    type="month"
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                )}
-
-                {dateFilter === "custom" && (
-                  <>
-                    <input
-                      type="date"
-                      value={customDateFrom}
-                      onChange={(e) => setCustomDateFrom(e.target.value)}
-                      placeholder="Date de début"
-                      className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="date"
-                      value={customDateTo}
-                      onChange={(e) => setCustomDateTo(e.target.value)}
-                      placeholder="Date de fin"
-                      className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </>
-                )}
+        {/* Filters Panel */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+          {/* Filter Header - Clickable */}
+          <button
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FilterIcon />
               </div>
+              <span className="font-semibold text-gray-800">Filtres</span>
+              {activeFiltersCount > 0 && (
+                <span className="px-2.5 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
+                  {activeFiltersCount}
+                </span>
+              )}
+            </div>
+            <ChevronIcon isOpen={isFiltersOpen} />
+          </button>
+
+          {/* Filter Content - Collapsible */}
+          <div
+            className={`transition-all duration-300 ease-in-out ${isFiltersOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
+          >
+            <div className="px-5 pb-5 border-t border-gray-100">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pt-5">
+                {/* Account Filter */}
+                <div className="space-y-2">
+                  <label
+                    htmlFor="account"
+                    className="flex items-center gap-2 text-sm font-medium text-gray-700"
+                  >
+                    <svg
+                      className="w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                      />
+                    </svg>
+                    Compte
+                  </label>
+                  <select
+                    id="account"
+                    value={selectedAccount}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  >
+                    <option value="" className="text-gray-600 font-medium">
+                      Tous les comptes
+                    </option>
+                    {accounts.map((account) => (
+                      <option key={account.accountId} value={account.accountId}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date Filter */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <CalendarIcon />
+                    Période
+                  </label>
+                  <div className="space-y-2">
+                    <select
+                      value={dateFilter}
+                      onChange={(e) =>
+                        setDateFilter(
+                          e.target.value as "month" | "custom" | "all"
+                        )
+                      }
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="month">Par mois</option>
+                      <option value="custom">Période personnalisée</option>
+                      <option value="all">Toutes les dates</option>
+                    </select>
+
+                    {dateFilter === "month" && (
+                      <input
+                        type="month"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                    )}
+
+                    {dateFilter === "custom" && (
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={customDateFrom}
+                          onChange={(e) => setCustomDateFrom(e.target.value)}
+                          className="flex-1 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                        <input
+                          type="date"
+                          value={customDateTo}
+                          onChange={(e) => setCustomDateTo(e.target.value)}
+                          className="flex-1 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount Filter */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <CurrencyIcon />
+                    Montant
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={amountMin}
+                      onChange={(e) => setAmountMin(e.target.value)}
+                      placeholder="Min"
+                      className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                    <span className="text-gray-500 text-sm">à</span>
+                    <input
+                      type="number"
+                      value={amountMax}
+                      onChange={(e) => setAmountMax(e.target.value)}
+                      placeholder="Max"
+                      className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Sort */}
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <SortIcon />
+                    Trier par
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={sortBy}
+                      onChange={(e) =>
+                        setSortBy(e.target.value as "date" | "amount")
+                      }
+                      className="flex-1 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="date">Date</option>
+                      <option value="amount">Montant</option>
+                    </select>
+                    <button
+                      onClick={() =>
+                        setSortDirection(
+                          sortDirection === "asc" ? "desc" : "asc"
+                        )
+                      }
+                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                        sortDirection === "desc"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                      }`}
+                      title={
+                        sortDirection === "asc" ? "Croissant" : "Décroissant"
+                      }
+                    >
+                      {sortDirection === "asc" ? "↑ Asc" : "↓ Desc"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reset Button */}
+              {activeFiltersCount > 0 && (
+                <div className="mt-5 pt-4 border-t border-gray-100 flex justify-end">
+                  <button
+                    onClick={resetFilters}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                  >
+                    <ResetIcon />
+                    Réinitialiser les filtres
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -304,11 +594,11 @@ export default function Transactions() {
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
             </div>
-          ) : transactions.length === 0 ? (
+          ) : sortedTransactions.length === 0 ? (
             <p className="text-gray-600">Aucune transaction disponible</p>
           ) : (
             <ul className="space-y-3">
-              {transactions.map((transaction) => (
+              {sortedTransactions.map((transaction) => (
                 <li
                   key={transaction.transactionId}
                   className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow mb-2 cursor-pointer"
