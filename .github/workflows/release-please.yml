@@ -20,7 +20,7 @@ jobs:
           manifest-file: .release-please-manifest.json
       - name: Enable Auto-Merge on Release PR
         if: ${{ steps.release.outputs.pr }}
-        uses: peter-evans/enable-pull-request-auto-merge@v3
+        uses: peter-evans/enable-pull-request-automerge@v3
         with:
           # Le jeton d'authentification. Le GITHUB_TOKEN par défaut suffit si 'pull-requests: write' est défini.
           token: ${{ secrets.GITHUB_TOKEN }}
