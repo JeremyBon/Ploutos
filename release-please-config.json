@@ -28,5 +28,6 @@
     { "type": "ci", "section": "👷 CI/CD" },
     { "type": "chore", "section": "🔧 Chores" }
   ],
-  "include-v-in-tag": true
+  "include-v-in-tag": true,
+  "pull-request-title-pattern": "chore(main): 🔖 release ${component} ${version}"
 }
