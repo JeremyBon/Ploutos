@@ -5,7 +5,13 @@
         "/Users/jeremy_bon/Library/Caches/pypoetry/virtualenvs"
     ],
     "python-envs.defaultEnvManager": "ms-python.python:venv",
-    "python-envs.pythonProjects": [],
+    "python-envs.pythonProjects": [
+        {
+            "path": ".github/workflows",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ],
     "python.analysis.extraPaths": [
         "./ploutos/src"
     ],
