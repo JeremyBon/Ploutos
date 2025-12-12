@@ -19,6 +19,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - name: Checkout
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        uses: actions/checkout@v4
+
       - name: Merge Release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
         run: gh pr merge --squash "${{ fromJSON(steps.release.outputs.pr).number }}"
