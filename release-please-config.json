@@ -1,20 +1,21 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "packages": {
-    "back": {
-      "release-type": "python",
+    ".": {
+      "release-type": "simple",
       "package-name": "ploutos",
       "extra-files": [
         {
           "type": "toml",
-          "path": "pyproject.toml",
+          "path": "back/pyproject.toml",
           "jsonpath": "$.tool.poetry.version"
+        },
+        {
+          "type": "json",
+          "path": "front/package.json",
+          "jsonpath": "$.version"
         }
       ]
-    },
-    "front": {
-      "release-type": "node",
-      "package-name": "ploutos-front"
     }
   },
   "changelog-sections": [
@@ -27,6 +28,5 @@
     { "type": "ci", "section": "👷 CI/CD" },
     { "type": "chore", "section": "🔧 Chores" }
   ],
-  "include-component-in-tag": true,
   "include-v-in-tag": true
 }
