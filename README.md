@@ -66,6 +66,7 @@ cd back && poetry run pytest
 
 ### Faire un dump de la base de données
 
+Dans back:
 ```bash
 pg_dump \
   "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
@@ -75,6 +76,7 @@ pg_dump \
 
 ### Restaurer depuis un dump
 
+Dans back:
 ```bash
 pg_restore \
   -d "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
@@ -116,7 +118,7 @@ Format [Conventional Commits](https://www.conventionalcommits.org/) requis : `[e
 
 L'emoji est optionnel et purement décoratif. Exemples :
 - `feat: add user authentication`
-- `feat: ✨  add user authentication`
+- `feat: ✨ add user authentication`
 - `fix(api): resolve timeout issue`
 
 | Type       | Description             | Version |
