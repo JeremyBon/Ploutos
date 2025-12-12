@@ -432,11 +432,11 @@ export default function AccountSettings() {
                 className={`w-full text-left flex items-center justify-between p-2 rounded-lg transition duration-150 ${
                   activeFilterKey === "all"
                     ? "bg-blue-100 text-blue-800 font-semibold"
-                    : "hover:bg-gray-100"
+                    : "text-gray-800 hover:bg-gray-100"
                 }`}
               >
-                <span>Tous les Comptes</span>
-                <span className="text-xs text-gray-400">
+                <span className="font-medium">Tous les Comptes</span>
+                <span className="text-xs text-gray-600">
                   {accountCounts.all}
                 </span>
               </button>
@@ -453,11 +453,11 @@ export default function AccountSettings() {
                       className={`w-full text-left flex items-center justify-between p-2 rounded-lg transition duration-150 ${
                         activeFilterKey === categoryKey
                           ? "bg-blue-100 text-blue-800 font-semibold"
-                          : "hover:bg-gray-100"
+                          : "text-gray-800 hover:bg-gray-100"
                       }`}
                     >
-                      <span>{category}</span>
-                      <span className="text-xs text-gray-400">
+                      <span className="font-medium">{category}</span>
+                      <span className="text-xs text-gray-600">
                         {accountCounts[categoryKey] || 0}
                       </span>
                     </button>
@@ -476,23 +476,23 @@ export default function AccountSettings() {
 
               <div className="flex items-center gap-6">
                 {/* Show archived toggle */}
-                <label className="flex items-center cursor-pointer text-gray-600">
+                <label className="flex items-center cursor-pointer text-gray-800">
                   <input
                     type="checkbox"
                     checked={showArchived}
                     onChange={(e) => setShowArchived(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 bg-white"
                   />
-                  <span className="ml-2 text-sm font-medium">
+                  <span className="ml-2 text-sm font-medium text-gray-800">
                     Afficher les archivés
                   </span>
                 </label>
 
                 {/* Sort */}
-                <div className="flex items-center space-x-2 text-gray-600">
+                <div className="flex items-center space-x-2 text-gray-800">
                   <label
                     htmlFor="sort"
-                    className="text-sm font-medium hidden sm:block"
+                    className="text-sm font-medium text-gray-800 hidden sm:block"
                   >
                     Trier par :
                   </label>
@@ -502,7 +502,7 @@ export default function AccountSettings() {
                     onChange={(e) =>
                       setSortOption(e.target.value as SortOption)
                     }
-                    className="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   >
                     <option value="amount-desc">Montant (Décroissant)</option>
                     <option value="name-asc">Nom (A-Z)</option>
@@ -637,7 +637,7 @@ export default function AccountSettings() {
             </h2>
             <form onSubmit={handleSubmit}>
               <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-800 mb-2">
                   Nom
                 </label>
                 <input
@@ -646,12 +646,12 @@ export default function AccountSettings() {
                   onChange={(e) =>
                     setAccountForm({ ...accountForm, name: e.target.value })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
                   required
                 />
               </div>
               <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-800 mb-2">
                   Catégorie
                 </label>
                 <input
@@ -663,12 +663,12 @@ export default function AccountSettings() {
                       category: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
                   required
                 />
               </div>
               <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-800 mb-2">
                   Sous-catégorie
                 </label>
                 <input
@@ -680,12 +680,12 @@ export default function AccountSettings() {
                       sub_category: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
                   required
                 />
               </div>
               <div className="mb-5">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-800 mb-2">
                   Montant initial
                 </label>
                 <input
@@ -698,7 +698,7 @@ export default function AccountSettings() {
                       original_amount: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
                   required
                 />
               </div>
@@ -713,9 +713,9 @@ export default function AccountSettings() {
                         is_real: e.target.checked,
                       })
                     }
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 bg-white"
                   />
-                  <span className="ml-3 text-sm text-gray-700">
+                  <span className="ml-3 text-sm font-medium text-gray-800">
                     Compte réel
                   </span>
                 </label>
@@ -731,9 +731,9 @@ export default function AccountSettings() {
                         active: e.target.checked,
                       })
                     }
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 bg-white"
                   />
-                  <span className="ml-3 text-sm text-gray-700">
+                  <span className="ml-3 text-sm font-medium text-gray-800">
                     Compte actif
                   </span>
                 </label>
