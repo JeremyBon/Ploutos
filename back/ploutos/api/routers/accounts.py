@@ -139,7 +139,7 @@ async def toggle_archive_account(account_id: str, db: SessionDep):
 
 
 @router.get("/accounts/current-amounts", response_model=list[AccountAmount])
-async def get_current_amounts(db: SessionDep):
+async def get_current_amounts(db: SessionDep, include_archived: bool = False):
     # Get all real accounts
     accounts_response = db.table("Accounts").select("*").execute()
 
@@ -147,7 +147,9 @@ async def get_current_amounts(db: SessionDep):
         return []
 
     accounts_response.data = [
-        account for account in accounts_response.data if account["is_real"]
+        account
+        for account in accounts_response.data
+        if account["is_real"] and (include_archived or account["active"])
     ]
 
     amount_response = (

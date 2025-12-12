@@ -719,7 +719,7 @@ export default function Transfers() {
               Êtes-vous sûr de vouloir merger ces deux transactions en un
               transfert ?
             </p>
-            <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2 text-gray-800">
               <p className="text-sm">
                 <span className="font-medium">De:</span>{" "}
                 {selectedCandidate.debit_transaction.description}
@@ -774,7 +774,7 @@ export default function Transfers() {
               Êtes-vous sûr de vouloir refuser cette paire de transactions ?
               Elle ne sera plus proposée comme candidat de transfert.
             </p>
-            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2 text-gray-800">
               <p className="text-sm">
                 <span className="font-medium">De:</span>{" "}
                 {selectedRejectCandidate.debit_transaction.description}

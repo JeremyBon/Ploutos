@@ -35,6 +35,7 @@ interface Account {
   sub_category: string;
   current_amount: number;
   is_real: boolean;
+  active: boolean;
 }
 
 interface TransactionSlave {

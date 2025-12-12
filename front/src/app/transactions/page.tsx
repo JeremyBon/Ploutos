@@ -162,6 +162,63 @@ export default function Transactions() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [filterIsReal, setFilterIsReal] = useState<"all" | "real" | "virtual">(
+    "all"
+  );
+  const [filterCategory, setFilterCategory] = useState<string>("");
+
+  // Get unique categories from accounts (filtered by is_real)
+  const categories = useMemo(() => {
+    const filteredByType = accounts.filter((account) => {
+      if (filterIsReal === "real") return account.is_real;
+      if (filterIsReal === "virtual") return !account.is_real;
+      return true;
+    });
+    const uniqueCategories = [
+      ...new Set(filteredByType.map((a) => a.category).filter(Boolean)),
+    ];
+    return uniqueCategories.sort();
+  }, [accounts, filterIsReal]);
+
+  // Reset category filter if it's no longer available
+  useEffect(() => {
+    if (filterCategory && !categories.includes(filterCategory)) {
+      setFilterCategory("");
+    }
+  }, [categories, filterCategory]);
+
+  // Filter accounts based on is_real and category
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((account) => {
+      if (filterIsReal === "real" && !account.is_real) return false;
+      if (filterIsReal === "virtual" && account.is_real) return false;
+      if (filterCategory && account.category !== filterCategory) return false;
+      return true;
+    });
+  }, [accounts, filterIsReal, filterCategory]);
+
+  // Group filtered accounts by category for display
+  const groupedAccounts = useMemo(() => {
+    const groups: Record<string, Account[]> = {};
+    filteredAccounts.forEach((account) => {
+      const cat = account.category || "Sans catégorie";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(account);
+    });
+    return groups;
+  }, [filteredAccounts]);
+
+  // Reset selected account if it's no longer in filtered accounts
+  useEffect(() => {
+    if (selectedAccount) {
+      const isStillValid = filteredAccounts.some(
+        (account) => account.accountId === selectedAccount
+      );
+      if (!isStillValid) {
+        setSelectedAccount("");
+      }
+    }
+  }, [filteredAccounts, selectedAccount]);
 
   // Count active filters
   const activeFiltersCount = useMemo(() => {
@@ -170,6 +227,8 @@ export default function Transactions() {
     if (dateFilter !== "all") count++;
     if (amountMin || amountMax) count++;
     if (sortBy !== "date" || sortDirection !== "desc") count++;
+    if (filterIsReal !== "all") count++;
+    if (filterCategory) count++;
     return count;
   }, [
     selectedAccount,
@@ -178,6 +237,8 @@ export default function Transactions() {
     amountMax,
     sortBy,
     sortDirection,
+    filterIsReal,
+    filterCategory,
   ]);
 
   const resetFilters = () => {
@@ -190,6 +251,8 @@ export default function Transactions() {
     setAmountMax("");
     setSortBy("date");
     setSortDirection("desc");
+    setFilterIsReal("all");
+    setFilterCategory("");
   };
 
   const fetchAccounts = useCallback(async () => {
@@ -416,46 +479,139 @@ export default function Transactions() {
 
           {/* Filter Content - Collapsible */}
           <div
-            className={`transition-all duration-300 ease-in-out ${isFiltersOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
+            className={`transition-all duration-300 ease-in-out ${isFiltersOpen ? "max-h-[700px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
           >
             <div className="px-5 pb-5 border-t border-gray-100">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pt-5">
-                {/* Account Filter */}
-                <div className="space-y-2">
-                  <label
-                    htmlFor="account"
-                    className="flex items-center gap-2 text-sm font-medium text-gray-700"
-                  >
-                    <svg
-                      className="w-4 h-4 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-5">
+                {/* Account Filters Row */}
+                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-gray-100">
+                  {/* Type de compte (is_real) */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <svg
+                        className="w-4 h-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      Type de compte
+                    </label>
+                    <div className="flex gap-1">
+                      {[
+                        { value: "all", label: "Tous" },
+                        { value: "real", label: "Réels" },
+                        { value: "virtual", label: "Virtuels" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() =>
+                            setFilterIsReal(
+                              option.value as "all" | "real" | "virtual"
+                            )
+                          }
+                          className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                            filterIsReal === option.value
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Catégorie */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <svg
+                        className="w-4 h-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                      Catégorie
+                    </label>
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                      />
-                    </svg>
-                    Compte
-                  </label>
-                  <select
-                    id="account"
-                    value={selectedAccount}
-                    onChange={(e) => setSelectedAccount(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  >
-                    <option value="" className="text-gray-600 font-medium">
-                      Tous les comptes
-                    </option>
-                    {accounts.map((account) => (
-                      <option key={account.accountId} value={account.accountId}>
-                        {account.name}
+                      <option value="">Toutes les catégories</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Compte */}
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="account"
+                      className="flex items-center gap-2 text-sm font-medium text-gray-700"
+                    >
+                      <svg
+                        className="w-4 h-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                        />
+                      </svg>
+                      Compte
+                      {filteredAccounts.length !== accounts.length && (
+                        <span className="text-xs text-blue-600">
+                          ({filteredAccounts.length}/{accounts.length})
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      id="account"
+                      value={selectedAccount}
+                      onChange={(e) => setSelectedAccount(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="" className="text-gray-600 font-medium">
+                        Tous les comptes
                       </option>
-                    ))}
-                  </select>
+                      {Object.entries(groupedAccounts).map(
+                        ([category, categoryAccounts]) => (
+                          <optgroup key={category} label={category}>
+                            {categoryAccounts.map((account) => (
+                              <option
+                                key={account.accountId}
+                                value={account.accountId}
+                              >
+                                {account.name}{" "}
+                                {account.is_real ? "" : "(virtuel)"}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )
+                      )}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Date Filter */}
