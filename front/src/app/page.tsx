@@ -38,6 +38,15 @@ interface Account {
   active: boolean;
 }
 
+interface VirtualAccount {
+  accountId: string;
+  name: string;
+  category: string;
+  sub_category: string;
+  is_real: boolean;
+  active: boolean;
+}
+
 interface TransactionSlave {
   slaveId: string;
   type: string;
@@ -75,13 +84,18 @@ interface DetailedTransaction {
 }
 
 interface MonthlySummaryItem {
-  accountId: string;
-  account_name: string;
+  categoryKey: string;
   category: string;
-  sub_category: string;
   total_amount: number;
   transaction_count: number;
   latest_date: string;
+  accounts: {
+    accountId: string;
+    account_name: string;
+    sub_category: string;
+    total_amount: number;
+    transaction_count: number;
+  }[];
 }
 
 interface MonthlySummary {
@@ -95,6 +109,7 @@ interface MonthlySummary {
 
 export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [allAccounts, setAllAccounts] = useState<VirtualAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
@@ -117,9 +132,13 @@ export default function Home() {
     subCategory: "",
   });
   const [editSlaves, setEditSlaves] = useState<TransactionSlave[]>([]);
+  const [slaveCategoryFilters, setSlaveCategoryFilters] = useState<
+    Record<number, string>
+  >({});
+  const [slaveAccountTypes, setSlaveAccountTypes] = useState<
+    Record<number, "virtual" | "real">
+  >({});
   const [isSaving, setIsSaving] = useState(false);
-  const [categoryError, setCategoryError] = useState(false);
-  const [subCategoryError, setSubCategoryError] = useState(false);
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -140,6 +159,19 @@ export default function Home() {
     }
   };
 
+  const fetchAllAccounts = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/accounts");
+      if (!response.ok) {
+        throw new Error("Failed to fetch all accounts");
+      }
+      const data = await response.json();
+      setAllAccounts(data);
+    } catch (error) {
+      console.error("Error fetching all accounts:", error);
+    }
+  };
+
   const fetchTransactions = async () => {
     try {
       setLoadingTransactions(true);
@@ -157,7 +189,6 @@ export default function Home() {
         throw new Error("Failed to fetch transactions");
       }
       const data = await response.json();
-      console.log("🔍 [fetchTransactions] Data from API:", data);
       setTransactions(data);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -168,6 +199,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchAccounts();
+    fetchAllAccounts();
   }, []);
 
   useEffect(() => {
@@ -175,7 +207,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, selectedMonth]);
 
-  // Fonction pour traiter les transactions et créer le résumé mensuel
+  // Fonction pour traiter les transactions et créer le résumé mensuel (groupé par catégorie)
   const monthlySummary = useMemo((): MonthlySummary => {
     const revenuesMap = new Map<string, MonthlySummaryItem>();
     const expensesMap = new Map<string, MonthlySummaryItem>();
@@ -195,60 +227,66 @@ export default function Home() {
           const amount = slave.amount;
           const type = slave.type;
 
+          // Récupérer les informations du compte depuis la liste de tous les comptes (incluant les virtuels)
+          const account = allAccounts.find(
+            (acc) => acc.accountId === accountId
+          );
+          const category = account?.category || "Inconnu";
+          const subCategory = account?.sub_category || "Inconnu";
+
           // Logique de classification basée sur le type :
           // - type "credit" = dépenses (sortie d'argent)
           // - type "debit" = revenus (entrée d'argent)
           const isRevenue = type.toLowerCase() === "debit"; // Débits = revenus
           const isExpense = type.toLowerCase() === "credit"; // Crédits = dépenses
 
-          if (isRevenue) {
-            const targetMap = revenuesMap;
-            if (targetMap.has(accountId)) {
-              const existing = targetMap.get(accountId)!;
-              existing.total_amount += amount;
-              existing.transaction_count += 1;
-              if (slave.date > existing.latest_date) {
-                existing.latest_date = slave.date;
-              }
+          const targetMap = isRevenue
+            ? revenuesMap
+            : isExpense
+              ? expensesMap
+              : null;
+          if (!targetMap) return;
+
+          if (targetMap.has(category)) {
+            const existing = targetMap.get(category)!;
+            existing.total_amount += amount;
+            existing.transaction_count += 1;
+            if (slave.date > existing.latest_date) {
+              existing.latest_date = slave.date;
+            }
+            // Mettre à jour ou ajouter le compte dans la liste des comptes
+            const existingAccount = existing.accounts.find(
+              (a) => a.accountId === accountId
+            );
+            if (existingAccount) {
+              existingAccount.total_amount += amount;
+              existingAccount.transaction_count += 1;
             } else {
-              // Récupérer les informations du compte depuis la liste des comptes
-              const account = accounts.find(
-                (acc) => acc.account_id === accountId
-              );
-              targetMap.set(accountId, {
+              existing.accounts.push({
                 accountId,
                 account_name: accountName,
-                category: account?.category || "Inconnu",
-                sub_category: account?.sub_category || "Inconnu",
+                sub_category: subCategory,
                 total_amount: amount,
                 transaction_count: 1,
-                latest_date: slave.date,
               });
             }
-          } else if (isExpense) {
-            const targetMap = expensesMap;
-            if (targetMap.has(accountId)) {
-              const existing = targetMap.get(accountId)!;
-              existing.total_amount += amount;
-              existing.transaction_count += 1;
-              if (slave.date > existing.latest_date) {
-                existing.latest_date = slave.date;
-              }
-            } else {
-              // Récupérer les informations du compte depuis la liste des comptes
-              const account = accounts.find(
-                (acc) => acc.account_id === accountId
-              );
-              targetMap.set(accountId, {
-                accountId,
-                account_name: accountName,
-                category: account?.category || "Inconnu",
-                sub_category: account?.sub_category || "Inconnu",
-                total_amount: amount,
-                transaction_count: 1,
-                latest_date: slave.date,
-              });
-            }
+          } else {
+            targetMap.set(category, {
+              categoryKey: category,
+              category,
+              total_amount: amount,
+              transaction_count: 1,
+              latest_date: slave.date,
+              accounts: [
+                {
+                  accountId,
+                  account_name: accountName,
+                  sub_category: subCategory,
+                  total_amount: amount,
+                  transaction_count: 1,
+                },
+              ],
+            });
           }
         }
       });
@@ -264,8 +302,20 @@ export default function Home() {
       return sortOrder === "asc" ? comparison : -comparison;
     };
 
+    // Trier également les comptes à l'intérieur de chaque catégorie
+    const sortAccountsFn = (
+      a: MonthlySummaryItem["accounts"][0],
+      b: MonthlySummaryItem["accounts"][0]
+    ) => {
+      const comparison = a.total_amount - b.total_amount;
+      return sortOrder === "asc" ? comparison : -comparison;
+    };
+
     const sortedRevenues = Array.from(revenuesMap.values()).sort(sortFn);
+    sortedRevenues.forEach((item) => item.accounts.sort(sortAccountsFn));
+
     const sortedExpenses = Array.from(expensesMap.values()).sort(sortFn);
+    sortedExpenses.forEach((item) => item.accounts.sort(sortAccountsFn));
 
     return {
       revenues: sortedRevenues,
@@ -275,7 +325,14 @@ export default function Home() {
         month: selectedMonth,
       },
     };
-  }, [transactions, accounts, selectedYear, selectedMonth, sortBy, sortOrder]);
+  }, [
+    transactions,
+    allAccounts,
+    selectedYear,
+    selectedMonth,
+    sortBy,
+    sortOrder,
+  ]);
 
   const totalAssets = accounts.reduce(
     (sum, account) => sum + account.current_amount,
@@ -302,7 +359,7 @@ export default function Home() {
 
   // Fonction pour obtenir les transactions détaillées d'une catégorie
   const getDetailedTransactionsForCategory = (
-    categoryId: string,
+    category: string,
     type: "revenue" | "expense"
   ): DetailedTransaction[] => {
     const detailedTransactions: DetailedTransaction[] = [];
@@ -315,12 +372,16 @@ export default function Home() {
         const slaveMonth = slaveDate.getUTCMonth() + 1;
         if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
 
-        // Filtrer seulement les comptes virtuels et la catégorie sélectionnée
-        if (
-          slave.slaveAccountIsReal === false &&
-          slave.accountId === categoryId
-        ) {
-          const account = accounts.find((acc) => acc.account_id === categoryId);
+        // Filtrer seulement les comptes virtuels
+        if (slave.slaveAccountIsReal === false) {
+          const account = allAccounts.find(
+            (acc) => acc.accountId === slave.accountId
+          );
+          const accountCategory = account?.category || "Inconnu";
+
+          // Filtrer par catégorie
+          if (accountCategory !== category) return;
+
           const isRevenue = slave.type.toLowerCase() === "debit";
           const isExpense = slave.type.toLowerCase() === "credit";
 
@@ -336,8 +397,8 @@ export default function Home() {
               amount: slave.amount,
               accountName: slave.slaveAccountName,
               accountId: slave.accountId,
-              category: account?.category || "Inconnu",
-              subCategory: account?.sub_category || "Inconnu",
+              category: accountCategory,
+              subCategory: account?.sub_category ?? "Inconnu",
               type: transaction.type,
             });
           }
@@ -369,16 +430,11 @@ export default function Home() {
 
   // Fonction pour ouvrir le modal d'édition
   const handleEditTransaction = (transaction: DetailedTransaction) => {
-    console.log("🔍 [handleEditTransaction] Transaction clicked:", transaction);
     setEditingTransaction(transaction);
 
     // Récupérer la transaction maître pour avoir les bonnes informations
     const masterTransaction = transactions.find(
       (t) => t.transactionId === transaction.transactionId
-    );
-    console.log(
-      "🔍 [handleEditTransaction] Master transaction found:",
-      masterTransaction
     );
 
     // Récupérer le compte maître pour avoir la catégorie et sous-catégorie actuelles
@@ -388,16 +444,38 @@ export default function Home() {
 
     setEditForm({
       description: transaction.description,
-      accountId: masterTransaction?.accountId || transaction.accountId, // Utiliser l'ID du compte maître
-      category: masterAccount?.category || transaction.category, // Utiliser la catégorie du compte maître
-      subCategory: masterAccount?.sub_category || transaction.subCategory, // Utiliser la sous-catégorie du compte maître
+      accountId: masterTransaction?.accountId || transaction.accountId,
+      category: masterAccount?.category || transaction.category,
+      subCategory: masterAccount?.sub_category || transaction.subCategory,
     });
 
     // Récupérer tous les slaves de cette transaction
     if (masterTransaction) {
-      setEditSlaves([...masterTransaction.TransactionsSlaves]);
+      const slaves = [...masterTransaction.TransactionsSlaves];
+      setEditSlaves(slaves);
+
+      // Initialiser les filtres de catégorie et types de comptes
+      const initialFilters: Record<number, string> = {};
+      const initialTypes: Record<number, "virtual" | "real"> = {};
+      slaves.forEach((slave, index) => {
+        const slaveAccount = allAccounts.find(
+          (acc) => acc.accountId === slave.accountId
+        );
+        if (slaveAccount) {
+          initialTypes[index] = slaveAccount.is_real ? "real" : "virtual";
+          if (!slaveAccount.is_real) {
+            initialFilters[index] = slaveAccount.category;
+          }
+        } else {
+          initialTypes[index] = slave.slaveAccountIsReal ? "real" : "virtual";
+        }
+      });
+      setSlaveCategoryFilters(initialFilters);
+      setSlaveAccountTypes(initialTypes);
     } else {
       setEditSlaves([]);
+      setSlaveCategoryFilters({});
+      setSlaveAccountTypes({});
     }
 
     setShowEditModal(true);
@@ -414,8 +492,8 @@ export default function Home() {
       subCategory: "",
     });
     setEditSlaves([]);
-    setCategoryError(false);
-    setSubCategoryError(false);
+    setSlaveCategoryFilters({});
+    setSlaveAccountTypes({});
   };
 
   // Fonction pour modifier un slave
@@ -435,65 +513,55 @@ export default function Home() {
     setEditSlaves(newSlaves);
   };
 
-  // Fonction pour gérer le changement de catégorie
-  const handleCategoryChange = (newCategory: string) => {
-    const currentSubCategory = editForm.subCategory;
-    const availableSubCategories = Array.from(
-      new Set(
-        accounts
-          .filter((acc) => acc.category === newCategory)
-          .map((acc) => acc.sub_category)
-      )
-    );
-
-    // Vérifier si la sous-catégorie actuelle est valide pour la nouvelle catégorie
-    const isSubCategoryValid =
-      availableSubCategories.includes(currentSubCategory);
-
-    setEditForm({
-      ...editForm,
-      category: newCategory,
-      subCategory: isSubCategoryValid ? currentSubCategory : "",
-    });
-
-    setCategoryError(false);
-    setSubCategoryError(!isSubCategoryValid && currentSubCategory !== "");
-  };
-
-  // Fonction pour gérer le changement de sous-catégorie
-  const handleSubCategoryChange = (newSubCategory: string) => {
-    setEditForm({
-      ...editForm,
-      subCategory: newSubCategory,
-    });
-    setSubCategoryError(false);
+  // Fonction pour calculer le solde des slaves (débits - crédits)
+  const getSlavesBalance = () => {
+    return editSlaves.reduce((balance, slave) => {
+      const amount = slave.amount || 0;
+      if (slave.type.toLowerCase() === "debit") {
+        return balance + amount;
+      } else {
+        return balance - amount;
+      }
+    }, 0);
   };
 
   // Fonction pour vérifier si la sauvegarde est possible
+  // Règle : crédit maître - débit maître = -(crédit slaves - débit slaves)
+  // Équivalent : masterBalance = slavesBalance (où slavesBalance = débits - crédits)
   const canSave = () => {
-    if (!editForm.category || !editForm.subCategory) return false;
+    if (!editingTransaction) return false;
 
-    const availableSubCategories = Array.from(
-      new Set(
-        accounts
-          .filter((acc) => acc.category === editForm.category)
-          .map((acc) => acc.sub_category)
-      )
+    // Vérifier qu'aucun slave n'a un montant <= 0
+    const hasInvalidSlaves = editSlaves.some(
+      (slave) => Number(slave.amount) <= 0 || !slave.accountId
     );
+    if (hasInvalidSlaves) return false;
 
-    return availableSubCategories.includes(editForm.subCategory);
+    // Calculer le solde maître (crédit - débit)
+    const masterAmount = editingTransaction.amount || 0;
+    const masterBalance =
+      editingTransaction.type.toLowerCase() === "credit"
+        ? masterAmount
+        : -masterAmount;
+
+    // Le solde slaves (débits - crédits) doit être égal au solde maître
+    const slavesBalance = getSlavesBalance();
+    return Math.abs(masterBalance - slavesBalance) < 0.01; // Tolérance pour les erreurs d'arrondi
   };
 
   // Fonction pour ajouter un nouveau slave
   const handleAddSlave = () => {
+    const virtualAccounts = allAccounts.filter((acc) => !acc.is_real);
+    const defaultAccount = virtualAccounts[0];
+
     const newSlave: TransactionSlave = {
       slaveId: `temp-${Date.now()}`, // ID temporaire
       type: "debit",
       amount: 0,
       date: new Date().toISOString(),
-      accountId: accounts[0]?.account_id || "",
+      accountId: defaultAccount?.accountId || "",
       masterId: editingTransaction?.transactionId || "",
-      slaveAccountName: accounts[0]?.name || "",
+      slaveAccountName: defaultAccount?.name || "",
       slaveAccountIsReal: false,
     };
     setEditSlaves([...editSlaves, newSlave]);
@@ -726,14 +794,14 @@ export default function Home() {
     >();
 
     monthlySummary.revenues.forEach((item) => {
-      const key = item.category || item.account_name || item.accountId;
+      const key = item.category;
       if (!map.has(key))
         map.set(key, { category: key, revenues: 0, expenses: 0 });
       map.get(key)!.revenues += item.total_amount;
     });
 
     monthlySummary.expenses.forEach((item) => {
-      const key = item.category || item.account_name || item.accountId;
+      const key = item.category;
       if (!map.has(key))
         map.set(key, { category: key, revenues: 0, expenses: 0 });
       map.get(key)!.expenses += item.total_amount;
@@ -1051,19 +1119,18 @@ export default function Home() {
                 ) : monthlySummary.revenues.length ? (
                   <div className="space-y-3">
                     {monthlySummary.revenues.slice(0, 5).map((item) => (
-                      <div key={item.accountId}>
+                      <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
-                          onClick={() => handleCategoryClick(item.accountId)}
+                          onClick={() => handleCategoryClick(item.categoryKey)}
                         >
                           <div>
                             <p className="font-medium text-gray-800">
-                              {item.account_name}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {item.category} - {item.sub_category}
+                              {item.category}
                             </p>
                             <p className="text-xs text-gray-400">
+                              {item.accounts.length} compte
+                              {item.accounts.length > 1 ? "s" : ""} -{" "}
                               {item.transaction_count} transaction
                               {item.transaction_count > 1 ? "s" : ""}
                             </p>
@@ -1077,12 +1144,12 @@ export default function Home() {
                         </div>
 
                         {/* Détails des transactions */}
-                        {expandedCategories.has(item.accountId) && (
+                        {expandedCategories.has(item.categoryKey) && (
                           <div className="mt-2 ml-4 space-y-2">
                             {(() => {
                               const detailedTransactions =
                                 getDetailedTransactionsForCategory(
-                                  item.accountId,
+                                  item.category,
                                   "revenue"
                                 );
                               return detailedTransactions.length > 0 ? (
@@ -1095,18 +1162,19 @@ export default function Home() {
                                         handleEditTransaction(transaction)
                                       }
                                     >
-                                      <div className="flex-1">
-                                        <p className="font-medium text-gray-800 text-sm">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-800 text-xs line-clamp-2">
                                           {transaction.description}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                          {transaction.accountName} -{" "}
                                           {new Date(
                                             transaction.date
                                           ).toLocaleDateString("fr-FR")}
                                         </p>
                                       </div>
-                                      <div className="text-right">
-                                        <p className="font-semibold text-green-600 text-sm">
+                                      <div className="text-right flex-shrink-0 ml-2">
+                                        <p className="font-semibold text-green-600 text-xs">
                                           {transaction.amount.toLocaleString(
                                             "fr-FR",
                                             {
@@ -1157,19 +1225,18 @@ export default function Home() {
                 ) : monthlySummary.expenses.length ? (
                   <div className="space-y-3">
                     {monthlySummary.expenses.slice(0, 5).map((item) => (
-                      <div key={item.accountId}>
+                      <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
-                          onClick={() => handleCategoryClick(item.accountId)}
+                          onClick={() => handleCategoryClick(item.categoryKey)}
                         >
                           <div>
                             <p className="font-medium text-gray-800">
-                              {item.account_name}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {item.category} - {item.sub_category}
+                              {item.category}
                             </p>
                             <p className="text-xs text-gray-400">
+                              {item.accounts.length} compte
+                              {item.accounts.length > 1 ? "s" : ""} -{" "}
                               {item.transaction_count} transaction
                               {item.transaction_count > 1 ? "s" : ""}
                             </p>
@@ -1184,12 +1251,12 @@ export default function Home() {
                         </div>
 
                         {/* Détails des transactions */}
-                        {expandedCategories.has(item.accountId) && (
+                        {expandedCategories.has(item.categoryKey) && (
                           <div className="mt-2 ml-4 space-y-2">
                             {(() => {
                               const detailedTransactions =
                                 getDetailedTransactionsForCategory(
-                                  item.accountId,
+                                  item.category,
                                   "expense"
                                 );
                               return detailedTransactions.length > 0 ? (
@@ -1202,18 +1269,19 @@ export default function Home() {
                                         handleEditTransaction(transaction)
                                       }
                                     >
-                                      <div className="flex-1">
-                                        <p className="font-medium text-gray-800 text-sm">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-800 text-xs line-clamp-2">
                                           {transaction.description}
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-1">
+                                        <p className="text-xs text-gray-400 mt-0.5">
+                                          {transaction.accountName} -{" "}
                                           {new Date(
                                             transaction.date
                                           ).toLocaleDateString("fr-FR")}
                                         </p>
                                       </div>
-                                      <div className="text-right">
-                                        <p className="font-semibold text-red-600 text-sm">
+                                      <div className="text-right flex-shrink-0 ml-2">
+                                        <p className="font-semibold text-red-600 text-xs">
                                           -
                                           {transaction.amount.toLocaleString(
                                             "fr-FR",
@@ -1369,8 +1437,7 @@ export default function Home() {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Description
                           </label>
-                          <input
-                            type="text"
+                          <textarea
                             value={editForm.description}
                             onChange={(e) =>
                               setEditForm({
@@ -1378,8 +1445,14 @@ export default function Home() {
                                 description: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium resize-none"
                             placeholder="Description de la transaction"
+                            rows={Math.max(
+                              2,
+                              (editForm.description.match(/\n/g) || []).length +
+                                1 +
+                                Math.ceil(editForm.description.length / 60)
+                            )}
                           />
                         </div>
 
@@ -1388,14 +1461,8 @@ export default function Home() {
                             Compte principal
                           </label>
                           <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                            {(() => {
-                              const selectedAccount = accounts.find(
-                                (acc) => acc.account_id === editForm.accountId
-                              );
-                              return selectedAccount
-                                ? `${selectedAccount.name} (${selectedAccount.category} - ${selectedAccount.sub_category})`
-                                : "Compte non trouvé";
-                            })()}
+                            {editingTransaction.accountName ||
+                              "Compte non trouvé"}
                           </div>
                         </div>
 
@@ -1403,78 +1470,18 @@ export default function Home() {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Catégorie
                           </label>
-                          <select
-                            value={editForm.category}
-                            onChange={(e) =>
-                              handleCategoryChange(e.target.value)
-                            }
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              categoryError
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300"
-                            }`}
-                          >
-                            <option value="">Sélectionner une catégorie</option>
-                            {Array.from(
-                              new Set(accounts.map((acc) => acc.category))
-                            )
-                              .sort()
-                              .map((category) => (
-                                <option key={category} value={category}>
-                                  {category}
-                                </option>
-                              ))}
-                          </select>
-                          {categoryError && (
-                            <p className="text-red-600 text-xs mt-1">
-                              ⚠️ Cette catégorie n&apos;est pas valide
-                            </p>
-                          )}
+                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
+                            {editForm.category || "Non définie"}
+                          </div>
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Sous-catégorie
                           </label>
-                          <select
-                            value={editForm.subCategory}
-                            onChange={(e) =>
-                              handleSubCategoryChange(e.target.value)
-                            }
-                            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                              subCategoryError
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300"
-                            }`}
-                            disabled={!editForm.category}
-                          >
-                            <option value="">
-                              Sélectionner une sous-catégorie
-                            </option>
-                            {editForm.category &&
-                              Array.from(
-                                new Set(
-                                  accounts
-                                    .filter(
-                                      (acc) =>
-                                        acc.category === editForm.category
-                                    )
-                                    .map((acc) => acc.sub_category)
-                                )
-                              )
-                                .sort()
-                                .map((subCategory) => (
-                                  <option key={subCategory} value={subCategory}>
-                                    {subCategory}
-                                  </option>
-                                ))}
-                          </select>
-                          {subCategoryError && (
-                            <p className="text-red-600 text-xs mt-1">
-                              ⚠️ Cette sous-catégorie n&apos;est pas valide pour
-                              la catégorie sélectionnée
-                            </p>
-                          )}
+                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
+                            {editForm.subCategory || "Non définie"}
+                          </div>
                         </div>
 
                         <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
@@ -1541,126 +1548,342 @@ export default function Home() {
                         </div>
 
                         <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                          {editSlaves.map((slave, index) => (
-                            <div
-                              key={slave.slaveId}
-                              className="border border-green-200 rounded-lg p-4 bg-green-50"
-                            >
-                              <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 bg-green-600 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                                    {index + 1}
+                          {editSlaves.map((slave, index) => {
+                            const isCredit =
+                              slave.type.toLowerCase() === "credit";
+                            return (
+                              <div
+                                key={slave.slaveId}
+                                className={`border rounded-lg p-4 ${isCredit ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}
+                              >
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center font-medium ${isCredit ? "bg-red-600" : "bg-green-600"}`}
+                                    >
+                                      {index + 1}
+                                    </div>
+                                    <h5
+                                      className={`font-medium ${isCredit ? "text-red-800" : "text-green-800"}`}
+                                    >
+                                      Transaction slave {index + 1}
+                                    </h5>
                                   </div>
-                                  <h5 className="font-medium text-green-800">
-                                    Transaction slave {index + 1}
-                                  </h5>
+                                  <button
+                                    onClick={() => handleRemoveSlave(index)}
+                                    className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
+                                    title="Supprimer cette transaction"
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className="h-4 w-4"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => handleRemoveSlave(index)}
-                                  className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
-                                  title="Supprimer cette transaction"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-4 w-4"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                </button>
-                              </div>
 
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                                    Compte
-                                  </label>
-                                  <select
-                                    value={slave.accountId}
-                                    onChange={(e) =>
-                                      handleSlaveChange(
-                                        index,
-                                        "accountId",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  >
-                                    {accounts.map((account) => (
-                                      <option
-                                        key={account.account_id}
-                                        value={account.account_id}
-                                      >
-                                        {account.name}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Type de compte
+                                    </label>
+                                    <select
+                                      value={
+                                        slaveAccountTypes[index] || "virtual"
+                                      }
+                                      onChange={(e) => {
+                                        const newType = e.target.value as
+                                          | "virtual"
+                                          | "real";
+                                        setSlaveAccountTypes({
+                                          ...slaveAccountTypes,
+                                          [index]: newType,
+                                        });
+                                        // Sélectionner automatiquement le premier compte du nouveau type
+                                        if (newType === "real") {
+                                          const firstRealAccount = accounts[0];
+                                          if (firstRealAccount) {
+                                            setEditSlaves((prevSlaves) => {
+                                              const newSlaves = [...prevSlaves];
+                                              newSlaves[index] = {
+                                                ...newSlaves[index],
+                                                accountId:
+                                                  firstRealAccount.account_id,
+                                                slaveAccountName:
+                                                  firstRealAccount.name,
+                                                slaveAccountIsReal: true,
+                                              };
+                                              return newSlaves;
+                                            });
+                                          }
+                                        } else {
+                                          const firstVirtualAccount =
+                                            allAccounts.find(
+                                              (acc) => !acc.is_real
+                                            );
+                                          if (firstVirtualAccount) {
+                                            setEditSlaves((prevSlaves) => {
+                                              const newSlaves = [...prevSlaves];
+                                              newSlaves[index] = {
+                                                ...newSlaves[index],
+                                                accountId:
+                                                  firstVirtualAccount.accountId,
+                                                slaveAccountName:
+                                                  firstVirtualAccount.name,
+                                                slaveAccountIsReal: false,
+                                              };
+                                              return newSlaves;
+                                            });
+                                            setSlaveCategoryFilters({
+                                              ...slaveCategoryFilters,
+                                              [index]:
+                                                firstVirtualAccount.category,
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+                                    >
+                                      <option value="virtual">
+                                        Virtuel (catégorie)
                                       </option>
-                                    ))}
-                                  </select>
-                                </div>
+                                      <option value="real">
+                                        Réel (banque)
+                                      </option>
+                                    </select>
+                                  </div>
 
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                                    Type
-                                  </label>
-                                  <select
-                                    value={slave.type}
-                                    onChange={(e) =>
-                                      handleSlaveChange(
-                                        index,
-                                        "type",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  >
-                                    <option value="debit">Débit</option>
-                                    <option value="credit">Crédit</option>
-                                  </select>
-                                </div>
+                                  {slaveAccountTypes[index] === "real" ? (
+                                    // Compte réel - sélection parmi les comptes réels
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Compte réel
+                                      </label>
+                                      <select
+                                        value={slave.accountId}
+                                        onChange={(e) => {
+                                          const selectedAccount = accounts.find(
+                                            (acc) =>
+                                              acc.account_id === e.target.value
+                                          );
+                                          setEditSlaves((prevSlaves) => {
+                                            const newSlaves = [...prevSlaves];
+                                            newSlaves[index] = {
+                                              ...newSlaves[index],
+                                              accountId: e.target.value,
+                                              slaveAccountName:
+                                                selectedAccount?.name ||
+                                                newSlaves[index]
+                                                  .slaveAccountName,
+                                              slaveAccountIsReal: true,
+                                            };
+                                            return newSlaves;
+                                          });
+                                        }}
+                                        className="w-full px-2 py-1.5 text-sm border-2 border-blue-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50 text-gray-800 font-medium"
+                                      >
+                                        <option value="" disabled>
+                                          Sélectionner un compte réel
+                                        </option>
+                                        {accounts.map((account) => (
+                                          <option
+                                            key={account.account_id}
+                                            value={account.account_id}
+                                          >
+                                            {account.name} ({account.category})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ) : (
+                                    // Compte virtuel - filtre catégorie
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Catégorie (filtre)
+                                      </label>
+                                      <select
+                                        value={
+                                          slaveCategoryFilters[index] || ""
+                                        }
+                                        onChange={(e) => {
+                                          const newCategory = e.target.value;
+                                          setSlaveCategoryFilters({
+                                            ...slaveCategoryFilters,
+                                            [index]: newCategory,
+                                          });
+                                          // Sélectionner automatiquement le premier compte de la nouvelle catégorie
+                                          const firstAccountInCategory =
+                                            allAccounts.find(
+                                              (acc) =>
+                                                !acc.is_real &&
+                                                (!newCategory ||
+                                                  acc.category === newCategory)
+                                            );
+                                          if (firstAccountInCategory) {
+                                            setEditSlaves((prevSlaves) => {
+                                              const newSlaves = [...prevSlaves];
+                                              newSlaves[index] = {
+                                                ...newSlaves[index],
+                                                accountId:
+                                                  firstAccountInCategory.accountId,
+                                                slaveAccountName:
+                                                  firstAccountInCategory.name,
+                                                slaveAccountIsReal: false,
+                                              };
+                                              return newSlaves;
+                                            });
+                                          }
+                                        }}
+                                        className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+                                      >
+                                        <option value="">
+                                          Toutes les catégories
+                                        </option>
+                                        {[
+                                          ...new Set(
+                                            allAccounts
+                                              .filter((acc) => !acc.is_real)
+                                              .map((acc) => acc.category)
+                                          ),
+                                        ].map((category) => (
+                                          <option
+                                            key={category}
+                                            value={category}
+                                          >
+                                            {category}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
 
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                                    Montant (€)
-                                  </label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={slave.amount}
-                                    onChange={(e) =>
-                                      handleSlaveChange(
-                                        index,
-                                        "amount",
-                                        parseFloat(e.target.value) || 0
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  />
-                                </div>
+                                  {slaveAccountTypes[index] !== "real" && (
+                                    <div className="col-span-2">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                                        Compte virtuel
+                                      </label>
+                                      <select
+                                        value={slave.accountId}
+                                        onChange={(e) => {
+                                          const selectedAccount =
+                                            allAccounts.find(
+                                              (acc) =>
+                                                acc.accountId === e.target.value
+                                            );
+                                          setEditSlaves((prevSlaves) => {
+                                            const newSlaves = [...prevSlaves];
+                                            newSlaves[index] = {
+                                              ...newSlaves[index],
+                                              accountId: e.target.value,
+                                              slaveAccountName:
+                                                selectedAccount?.name ||
+                                                newSlaves[index]
+                                                  .slaveAccountName,
+                                              slaveAccountIsReal: false,
+                                            };
+                                            return newSlaves;
+                                          });
+                                        }}
+                                        className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+                                      >
+                                        <option value="" disabled>
+                                          Sélectionner un compte
+                                        </option>
+                                        {slave.accountId &&
+                                          !allAccounts.some(
+                                            (acc) =>
+                                              !acc.is_real &&
+                                              acc.accountId ===
+                                                slave.accountId &&
+                                              (!slaveCategoryFilters[index] ||
+                                                acc.category ===
+                                                  slaveCategoryFilters[index])
+                                          ) && (
+                                            <option value={slave.accountId}>
+                                              {slave.slaveAccountName ||
+                                                "Compte actuel"}
+                                            </option>
+                                          )}
+                                        {allAccounts
+                                          .filter(
+                                            (acc) =>
+                                              !acc.is_real &&
+                                              (!slaveCategoryFilters[index] ||
+                                                acc.category ===
+                                                  slaveCategoryFilters[index])
+                                          )
+                                          .map((account) => (
+                                            <option
+                                              key={account.accountId}
+                                              value={account.accountId}
+                                            >
+                                              {account.name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+                                  )}
 
-                                <div>
-                                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                                    Date
-                                  </label>
-                                  <input
-                                    type="date"
-                                    value={slave.date.split("T")[0]}
-                                    onChange={(e) =>
-                                      handleSlaveChange(
-                                        index,
-                                        "date",
-                                        new Date(e.target.value).toISOString()
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  />
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Type
+                                    </label>
+                                    <select
+                                      value={slave.type}
+                                      onChange={(e) =>
+                                        handleSlaveChange(
+                                          index,
+                                          "type",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+                                    >
+                                      <option value="debit">Débit</option>
+                                      <option value="credit">Crédit</option>
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Montant (€)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={slave.amount}
+                                      onChange={(e) =>
+                                        handleSlaveChange(
+                                          index,
+                                          "amount",
+                                          parseFloat(e.target.value) || 0
+                                        )
+                                      }
+                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Date
+                                    </label>
+                                    <div className="w-full px-2 py-1.5 text-sm bg-gray-200 border-2 border-gray-300 rounded-md text-gray-600 font-medium">
+                                      {new Date(slave.date).toLocaleDateString(
+                                        "fr-FR"
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
 
                           {editSlaves.length === 0 && (
                             <div className="text-center py-8 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
