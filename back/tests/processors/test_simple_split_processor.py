@@ -53,6 +53,7 @@ def base_split_transaction(correct_unknown_account):
         sub_category=correct_unknown_account["sub_category"],
         is_real=correct_unknown_account["is_real"],
         original_amount=correct_unknown_account["original_amount"],
+        active=correct_unknown_account["active"],
         created_at=datetime.fromisoformat(
             correct_unknown_account["created_at"].replace("Z", "+00:00")
         ),
@@ -778,6 +779,7 @@ def test_process_fails_validation_multiple_slaves(
             sub_category=correct_unknown_account["sub_category"],
             is_real=correct_unknown_account["is_real"],
             original_amount=correct_unknown_account["original_amount"],
+            active=correct_unknown_account["active"],
             created_at=datetime.fromisoformat(
                 correct_unknown_account["created_at"].replace("Z", "+00:00")
             ),
@@ -832,6 +834,7 @@ def test_process_fails_validation_real_account_slave(
         sub_category=sample_accounts[0]["sub_category"],
         is_real=True,
         original_amount=sample_accounts[0]["original_amount"],
+        active=sample_accounts[0]["active"],
         created_at=datetime.fromisoformat(
             sample_accounts[0]["created_at"].replace("Z", "+00:00")
         ),

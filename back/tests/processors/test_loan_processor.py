@@ -15,6 +15,7 @@ from ploutos.processors.loan import (
     LoanConfig,
     LoanProcessor,
     calculate_monthly_payment,
+    calculate_payment_breakdown,
     get_payment_number,
 )
 
@@ -62,6 +63,7 @@ def loan_transaction(correct_unknown_account, sample_accounts):
         sub_category=correct_unknown_account["sub_category"],
         is_real=correct_unknown_account["is_real"],
         original_amount=correct_unknown_account["original_amount"],
+        active=correct_unknown_account["active"],
         created_at=datetime.fromisoformat(
             correct_unknown_account["created_at"].replace("Z", "+00:00")
         ),
@@ -312,8 +314,12 @@ def test_loan_processor_successful_processing(
     """Successful loan processing should return 2 slaves (principal + interest) when amount matches."""
     # Create transaction with exact expected amount for payment #2
     config_obj = LoanConfig(**valid_loan_config)
-    table = loan_processor._generate_amortization_table(config_obj)
-    exact_amount = table[2]["total_payment"]  # 965.09€
+    exact_amount = round(
+        calculate_monthly_payment(
+            config_obj.loan_amount, config_obj.annual_rate, config_obj.duration_months
+        ),
+        2,
+    )
 
     account_id = UUID(sample_accounts[0]["accountId"])
     unknown_account_id = UUID(correct_unknown_account["accountId"])
@@ -324,6 +330,7 @@ def test_loan_processor_successful_processing(
         sub_category=correct_unknown_account["sub_category"],
         is_real=correct_unknown_account["is_real"],
         original_amount=correct_unknown_account["original_amount"],
+        active=correct_unknown_account["active"],
         created_at=datetime.fromisoformat(
             correct_unknown_account["created_at"].replace("Z", "+00:00")
         ),
@@ -415,19 +422,24 @@ def test_loan_processor_after_loan_term(
     assert result["slaves"] == []
 
 
-def test_loan_processor_amount_mismatch_fails_with_strict_validation(
+def test_loan_processor_amount_mismatch_capital_absorbs_difference(
     loan_processor, loan_transaction, valid_loan_config
 ):
-    """When amount differs from theoretical, processor fails with strict validation."""
+    """When amount differs from theoretical, capital absorbs the difference."""
     # Change transaction amount to create mismatch
     loan_transaction.amount = 860.00  # Expected ~965.09
+    loan_transaction.TransactionsSlaves[0].amount = 860.00
 
     config = loan_processor.validate_config(valid_loan_config)
     result = loan_processor.process(loan_transaction, config)
 
-    assert result["success"] is False
-    assert "amount mismatch" in result["error_message"].lower()
-    assert result["slaves"] == []
+    # Processor succeeds - capital absorbs the difference
+    assert result["success"] is True
+    assert len(result["slaves"]) == 2
+
+    # Total should equal actual transaction amount
+    total = sum(s.amount for s in result["slaves"])
+    assert total == pytest.approx(860.00, abs=0.01)
 
 
 def test_loan_processor_exact_amount_no_unknown_slave(
@@ -436,8 +448,12 @@ def test_loan_processor_exact_amount_no_unknown_slave(
     """Exact amount match should create only 2 slaves (no unknown)."""
     # Calculate expected amount for payment #2
     config_obj = LoanConfig(**valid_loan_config)
-    table = loan_processor._generate_amortization_table(config_obj)
-    expected_amount = table[2]["total_payment"]
+    expected_amount = round(
+        calculate_monthly_payment(
+            config_obj.loan_amount, config_obj.annual_rate, config_obj.duration_months
+        ),
+        2,
+    )
 
     # Set transaction to exact expected amount
     loan_transaction.amount = expected_amount
@@ -495,88 +511,69 @@ def test_loan_processor_slaves_have_correct_dates(
         assert slave.date == loan_transaction.date
 
 
-def test_loan_processor_last_payment_exact_balance(loan_processor, valid_loan_config):
+def test_loan_processor_last_payment_exact_balance(valid_loan_config):
     """Last payment (month 240) should have remaining balance = 0."""
     # Create transaction for last payment
     config_obj = LoanConfig(**valid_loan_config)
-    table = loan_processor._generate_amortization_table(config_obj)
 
-    assert table[240]["remaining_balance"] == 0.0
+    # Use calculate_payment_breakdown to check last payment
+    principal, interest, remaining = calculate_payment_breakdown(
+        config_obj.duration_months, config_obj
+    )
+
+    assert remaining == 0.0
 
     # Verify total equals expected monthly payment
     monthly_payment = calculate_monthly_payment(
         config_obj.loan_amount, config_obj.annual_rate, config_obj.duration_months
     )
-    assert table[240]["total_payment"] == pytest.approx(monthly_payment, abs=0.01)
+    assert (principal + interest) == pytest.approx(monthly_payment, abs=0.01)
 
 
-def test_amortization_table_generation(loan_processor, valid_loan_config):
-    """Test full amortization table generation."""
+def test_payment_breakdown_calculations(valid_loan_config):
+    """Test payment breakdown calculations using calculate_payment_breakdown."""
     config = LoanConfig(**valid_loan_config)
-
-    table = loan_processor._generate_amortization_table(config)
-
-    # Verify table has correct length
-    assert len(table) == config.duration_months
-
-    # Verify structure of each entry
-    assert "principal" in table[1]
-    assert "interest" in table[1]
-    assert "remaining_balance" in table[1]
-    assert "total_payment" in table[1]
 
     # Verify first payment calculations
     # Interest = 200000 × 0.00125 = 250.00€
-    assert table[1]["interest"] == pytest.approx(250.0, abs=0.01)
-    assert table[1]["principal"] == pytest.approx(715.09, abs=0.01)
-    assert table[1]["total_payment"] == pytest.approx(965.09, abs=0.01)
+    principal1, interest1, remaining1 = calculate_payment_breakdown(1, config)
+    assert interest1 == pytest.approx(250.0, abs=0.01)
+    assert principal1 == pytest.approx(715.09, abs=0.01)
 
     # Verify second payment calculations
     # Interest = 199284.91 × 0.00125 = 249.11€
-    assert table[2]["interest"] == pytest.approx(249.11, abs=0.01)
-    assert table[2]["principal"] == pytest.approx(715.98, abs=0.01)
+    principal2, interest2, remaining2 = calculate_payment_breakdown(2, config)
+    assert interest2 == pytest.approx(249.11, abs=0.01)
+    assert principal2 == pytest.approx(715.98, abs=0.01)
 
     # Verify last payment has zero balance
-    assert table[240]["remaining_balance"] == 0.0
+    _, _, remaining_last = calculate_payment_breakdown(240, config)
+    assert remaining_last == 0.0
 
 
-def test_amortization_table_caching(loan_processor, valid_loan_config):
-    """Test that table is cached and reused within same processor instance."""
-    config = LoanConfig(**valid_loan_config)
-
-    # First call - generates table
-    table1 = loan_processor._get_amortization_table(config)
-
-    # Second call - uses cache
-    table2 = loan_processor._get_amortization_table(config)
-
-    # Should be same object (cached)
-    assert table1 is table2
-
-    # Verify cache key exists
-    cache_key = f"{config.loan_amount}_{config.annual_rate}_{config.duration_months}_{config.start_date}"
-    assert cache_key in loan_processor._amortization_cache
-
-
-def test_amount_validation_exact_match_required(
+def test_small_amount_difference_absorbed_by_capital(
     loan_processor, loan_transaction, valid_loan_config
 ):
-    """Test that even small differences cause validation failure."""
+    """Test that small differences are absorbed by capital component."""
     config = LoanConfig(**valid_loan_config)
 
     # Calculate exact theoretical amount
-    table = loan_processor._generate_amortization_table(config)
-    theoretical = table[2]["total_payment"]
+    theoretical = round(
+        calculate_monthly_payment(
+            config.loan_amount, config.annual_rate, config.duration_months
+        ),
+        2,
+    )
 
-    # Add 0.01€ (even 1 cent should fail)
+    # Add 0.01€ - should be absorbed by capital
     loan_transaction.amount = theoretical + 0.01
     loan_transaction.TransactionsSlaves[0].amount = loan_transaction.amount
 
     result = loan_processor.process(loan_transaction, config)
 
-    # Should fail with exact validation
-    assert result["success"] is False
-    assert "amount mismatch" in result["error_message"].lower()
+    # Should succeed - capital absorbs the difference
+    assert result["success"] is True
+    assert len(result["slaves"]) == 2
 
 
 # =============================================================================

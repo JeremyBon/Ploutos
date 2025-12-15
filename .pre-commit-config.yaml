@@ -39,4 +39,11 @@ repos:
         language: system
         stages: [commit-msg]
         pass_filenames: false
+      - id: pytest
+        name: Pytest
+        entry: bash -c 'cd back && poetry run pytest'
+        language: system
+        files: ^back/
+        pass_filenames: false
+        always_run: false
 

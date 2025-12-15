@@ -720,8 +720,8 @@ export default function Home() {
           return d.getFullYear() === ty && d.getMonth() + 1 === tm;
         });
         if (idx !== -1) {
-          const isRevenue = t.type.toLowerCase() === "debit";
-          const isExpense = t.type.toLowerCase() === "credit";
+          const isRevenue = t.type.toLowerCase() === "credit";
+          const isExpense = t.type.toLowerCase() === "debit";
           const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
           realDelta[idx] += delta;
         }
@@ -739,8 +739,8 @@ export default function Home() {
             return d.getFullYear() === sy && d.getMonth() + 1 === sm;
           });
           if (idx === -1) return;
-          const isRevenue = slave.type.toLowerCase() === "debit";
-          const isExpense = slave.type.toLowerCase() === "credit";
+          const isRevenue = slave.type.toLowerCase() === "credit";
+          const isExpense = slave.type.toLowerCase() === "debit";
           const delta = isRevenue
             ? slave.amount
             : isExpense
