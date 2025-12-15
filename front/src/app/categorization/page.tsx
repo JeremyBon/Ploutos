@@ -90,11 +90,19 @@ interface MatchingPreviewResult {
 
 const API_URL = "http://localhost:8000";
 const MATCH_TYPES = [
-  { value: "contains", label: "Contient" },
-  { value: "starts_with", label: "Commence par" },
-  { value: "exact", label: "Exact" },
-  { value: "regex", label: "Regex" },
+  { value: "contains", label: "Contient", isAmount: false },
+  { value: "starts_with", label: "Commence par", isAmount: false },
+  { value: "exact", label: "Exact", isAmount: false },
+  { value: "regex", label: "Regex", isAmount: false },
+  { value: "amount_gt", label: "Montant >", isAmount: true },
+  { value: "amount_lt", label: "Montant <", isAmount: true },
+  { value: "amount_gte", label: "Montant >=", isAmount: true },
+  { value: "amount_lte", label: "Montant <=", isAmount: true },
+  { value: "amount_eq", label: "Montant =", isAmount: true },
 ];
+
+const isAmountMatchType = (matchType: string) =>
+  MATCH_TYPES.find((t) => t.value === matchType)?.isAmount ?? false;
 
 const CATEGORIZATION_TYPES = [
   { value: "splitItem", label: "Classique" },
@@ -722,10 +730,30 @@ export default function Categorization() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Motif à rechercher
+                            {isAmountMatchType(
+                              formData.condition_groups[0]?.conditions[0]
+                                ?.match_type || "contains"
+                            )
+                              ? "Montant"
+                              : "Motif à rechercher"}
                           </label>
                           <input
-                            type="text"
+                            type={
+                              isAmountMatchType(
+                                formData.condition_groups[0]?.conditions[0]
+                                  ?.match_type || "contains"
+                              )
+                                ? "number"
+                                : "text"
+                            }
+                            step={
+                              isAmountMatchType(
+                                formData.condition_groups[0]?.conditions[0]
+                                  ?.match_type || "contains"
+                              )
+                                ? "0.01"
+                                : undefined
+                            }
                             value={
                               formData.condition_groups[0]?.conditions[0]
                                 ?.match_value || ""
@@ -750,7 +778,14 @@ export default function Categorization() {
                               })
                             }
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            placeholder="CARREFOUR"
+                            placeholder={
+                              isAmountMatchType(
+                                formData.condition_groups[0]?.conditions[0]
+                                  ?.match_type || "contains"
+                              )
+                                ? "100.00"
+                                : "CARREFOUR"
+                            }
                             required
                           />
                         </div>
@@ -867,7 +902,20 @@ export default function Categorization() {
                                           ))}
                                         </select>
                                         <input
-                                          type="text"
+                                          type={
+                                            isAmountMatchType(
+                                              condition.match_type
+                                            )
+                                              ? "number"
+                                              : "text"
+                                          }
+                                          step={
+                                            isAmountMatchType(
+                                              condition.match_type
+                                            )
+                                              ? "0.01"
+                                              : undefined
+                                          }
                                           value={condition.match_value}
                                           onChange={(e) => {
                                             const newGroups = [
@@ -885,7 +933,13 @@ export default function Categorization() {
                                             });
                                           }}
                                           className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                                          placeholder="Motif"
+                                          placeholder={
+                                            isAmountMatchType(
+                                              condition.match_type
+                                            )
+                                              ? "100.00"
+                                              : "Motif"
+                                          }
                                           required
                                         />
                                         {group.conditions.length > 1 && (

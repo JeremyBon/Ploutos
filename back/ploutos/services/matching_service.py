@@ -129,16 +129,30 @@ def _apply_condition_filter(query, condition: dict):
         Query with condition filter applied
     """
     match_type = condition["match_type"]
-    pattern = condition["match_value"]
+    value = condition["match_value"]
 
+    # Description matching
     if match_type == MatchType.CONTAINS.value:
-        return query.ilike("description", f"%{pattern}%")
+        return query.ilike("description", f"%{value}%")
     elif match_type == MatchType.STARTS_WITH.value:
-        return query.ilike("description", f"{pattern}%")
+        return query.ilike("description", f"{value}%")
     elif match_type == MatchType.EXACT.value:
-        return query.ilike("description", pattern)
+        return query.ilike("description", value)
     elif match_type == MatchType.REGEX.value:
-        return query.filter("description", "~*", pattern)
+        return query.filter("description", "~*", value)
+
+    # Amount matching
+    elif match_type == MatchType.AMOUNT_GT.value:
+        return query.gt("amount", float(value))
+    elif match_type == MatchType.AMOUNT_LT.value:
+        return query.lt("amount", float(value))
+    elif match_type == MatchType.AMOUNT_GTE.value:
+        return query.gte("amount", float(value))
+    elif match_type == MatchType.AMOUNT_LTE.value:
+        return query.lte("amount", float(value))
+    elif match_type == MatchType.AMOUNT_EQ.value:
+        return query.eq("amount", float(value))
+
     else:
         raise ValueError(f"Unknown match type: {match_type}")
 

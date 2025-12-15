@@ -7,12 +7,20 @@ from pydantic import field_serializer
 
 
 class MatchType(str, Enum):
-    """Transaction description matching strategy types."""
+    """Transaction matching strategy types."""
 
+    # Description matching
     CONTAINS = "contains"
     STARTS_WITH = "starts_with"
     EXACT = "exact"
     REGEX = "regex"
+
+    # Amount matching
+    AMOUNT_GT = "amount_gt"  # >
+    AMOUNT_LT = "amount_lt"  # <
+    AMOUNT_GTE = "amount_gte"  # >=
+    AMOUNT_LTE = "amount_lte"  # <=
+    AMOUNT_EQ = "amount_eq"  # =
 
 
 class LogicalOperator(str, Enum):
