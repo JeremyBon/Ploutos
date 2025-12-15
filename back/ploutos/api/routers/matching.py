@@ -115,7 +115,7 @@ async def process_matching(db: SessionDep):
         processed_transaction_ids = set()  # Track to avoid duplicates
         for rule in rules_response.data:
             logger.info(
-                f"Processing rule: '{rule['description']}' ({rule['match_type']} - priority {rule['priority']})"
+                f"Processing rule: '{rule['description']}' (priority {rule['priority']})"
             )
 
             # MATCHING: Find transactions matching this rule using SQL filters
@@ -158,14 +158,14 @@ async def process_matching(db: SessionDep):
                             {
                                 "transaction_id": str(tx.transactionId),
                                 "description": tx.description,
-                                "matched_rule": rule["match_value"],
-                                "match_type": rule["match_type"],
+                                "matched_rule": rule["description"],
+                                "match_type": None,
                             }
                         )
 
                         logger.debug(
                             f"Categorized transaction {tx.transactionId} "
-                            f"using rule '{rule['description']}' ({rule['match_type']})"
+                            f"using rule '{rule['description']}'"
                         )
                     else:
                         error_msg = processor_result.get(
@@ -257,7 +257,7 @@ async def preview_rule_matching(rule_id: str, db: SessionDep):
 
         rule = rule_response.data[0]
 
-        logger.info(f"Previewing rule: '{rule['description']}' ({rule['match_type']})")
+        logger.info(f"Previewing rule: '{rule['description']}'")
 
         # Find matching transactions using existing logic
         matched_txs = await find_matching_transactions(db, rule)

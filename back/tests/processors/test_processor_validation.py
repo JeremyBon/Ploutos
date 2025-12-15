@@ -80,6 +80,7 @@ def base_transaction(sample_accounts, correct_unknown_account):
         sub_category=correct_unknown_account["sub_category"],
         is_real=correct_unknown_account["is_real"],
         original_amount=correct_unknown_account["original_amount"],
+        active=correct_unknown_account["active"],
         created_at=datetime.fromisoformat(
             correct_unknown_account["created_at"].replace("Z", "+00:00")
         ),
@@ -306,6 +307,7 @@ def test_validate_transaction_invalid_slave_counts(
         sub_category=correct_unknown_account["sub_category"],
         is_real=correct_unknown_account["is_real"],
         original_amount=correct_unknown_account["original_amount"],
+        active=correct_unknown_account["active"],
         created_at=datetime.fromisoformat(
             correct_unknown_account["created_at"].replace("Z", "+00:00")
         ),
@@ -369,6 +371,7 @@ def test_validate_transaction_invalid_unknown_account_fields(
         sub_category=sub_category,
         is_real=is_real,
         original_amount=0.0,
+        active=True,
         created_at=datetime(2025, 1, 1),
         updated_at=datetime(2025, 1, 1),
     )
@@ -400,6 +403,7 @@ def test_validate_transaction_with_real_bank_account(
         sub_category=sample_accounts[0]["sub_category"],
         is_real=sample_accounts[0]["is_real"],
         original_amount=sample_accounts[0]["original_amount"],
+        active=sample_accounts[0]["active"],
         created_at=datetime.fromisoformat(
             sample_accounts[0]["created_at"].replace("Z", "+00:00")
         ),
@@ -619,6 +623,7 @@ def test_validate_transaction_fails_on_second_check_ignores_balance(
         sub_category=sample_accounts[0]["sub_category"],
         is_real=sample_accounts[0]["is_real"],
         original_amount=sample_accounts[0]["original_amount"],
+        active=sample_accounts[0]["active"],
         created_at=datetime.fromisoformat(
             sample_accounts[0]["created_at"].replace("Z", "+00:00")
         ),

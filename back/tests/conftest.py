@@ -39,6 +39,7 @@ def sample_accounts():
             "sub_category": "Checking",
             "is_real": True,
             "original_amount": 1000.0,
+            "active": True,
             "created_at": "2025-01-01T00:00:00",
             "updated_at": "2025-01-01T00:00:00",
         },
@@ -49,6 +50,7 @@ def sample_accounts():
             "sub_category": "Checking",
             "is_real": True,
             "original_amount": 500.0,
+            "active": True,
             "created_at": "2025-01-01T00:00:00",
             "updated_at": "2025-01-01T00:00:00",
         },
@@ -65,6 +67,7 @@ def sample_unknown_account():
         "sub_category": "Uncategorized",
         "is_real": False,
         "original_amount": 0.0,
+        "active": True,
         "created_at": "2025-01-01T00:00:00",
         "updated_at": "2025-01-01T00:00:00",
     }
@@ -85,6 +88,7 @@ def correct_unknown_account():
         "sub_category": "Unknown",
         "is_real": False,
         "original_amount": 0.0,
+        "active": True,
         "created_at": "2025-01-01T00:00:00",
         "updated_at": "2025-01-01T00:00:00",
     }

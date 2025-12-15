@@ -28,11 +28,20 @@ interface ProcessorConfig {
   [key: string]: unknown;
 }
 
+interface MatchCondition {
+  match_type: string;
+  match_value: string;
+}
+
+interface ConditionGroup {
+  operator: "and" | "or";
+  conditions: MatchCondition[];
+}
+
 interface CategorizationRule {
   ruleId: string;
   description: string;
-  match_type: string;
-  match_value: string;
+  condition_groups: ConditionGroup[];
   account_ids: string[] | null;
   priority: number;
   enabled: boolean;
@@ -101,6 +110,7 @@ const TRANSACTION_FILTERS = [
 export default function Categorization() {
   const [rules, setRules] = useState<CategorizationRule[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [realAccounts, setRealAccounts] = useState<Account[]>([]);
   const [stats, setStats] = useState<MatchingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -117,10 +127,15 @@ export default function Categorization() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Form state
+  const [advancedMode, setAdvancedMode] = useState(false);
   const [formData, setFormData] = useState({
     description: "",
-    match_type: "contains",
-    match_value: "",
+    condition_groups: [
+      {
+        operator: "and" as const,
+        conditions: [{ match_type: "contains", match_value: "" }],
+      },
+    ] as ConditionGroup[],
     account_ids: [] as string[],
     priority: 0,
     enabled: true,
@@ -138,6 +153,7 @@ export default function Categorization() {
       if (!response.ok) throw new Error("Failed to fetch accounts");
       const data = await response.json();
       setAccounts(data.filter((acc: Account) => !acc.is_real));
+      setRealAccounts(data.filter((acc: Account) => acc.is_real));
     } catch (error) {
       console.error("Error fetching accounts:", error);
       setError("Erreur lors du chargement des comptes");
@@ -262,10 +278,16 @@ export default function Categorization() {
     setEditingRule(rule);
     const categorizationType =
       rule.processor_type === "loan" ? "loan" : "splitItem";
+
+    // Determine if advanced mode based on rule complexity
+    const isAdvanced =
+      rule.condition_groups.length > 1 ||
+      rule.condition_groups.some((g) => g.conditions.length > 1);
+    setAdvancedMode(isAdvanced);
+
     setFormData({
       description: rule.description,
-      match_type: rule.match_type,
-      match_value: rule.match_value,
+      condition_groups: rule.condition_groups,
       account_ids: rule.account_ids || [],
       priority: rule.priority,
       enabled: rule.enabled,
@@ -277,6 +299,9 @@ export default function Categorization() {
   };
 
   const handleProcessMatching = async () => {
+    // Prevent double-click
+    if (processing) return;
+
     if (
       !confirm(
         "Lancer le matching automatique sur toutes les transactions non catégorisées ?"
@@ -324,10 +349,15 @@ export default function Categorization() {
   };
 
   const resetForm = () => {
+    setAdvancedMode(false);
     setFormData({
       description: "",
-      match_type: "contains",
-      match_value: "",
+      condition_groups: [
+        {
+          operator: "and" as const,
+          conditions: [{ match_type: "contains", match_value: "" }],
+        },
+      ],
       account_ids: [],
       priority: 0,
       enabled: true,
@@ -374,6 +404,42 @@ export default function Categorization() {
         </div>
       ));
     }
+  };
+
+  const getMatchTypeLabel = (matchType: string) => {
+    const type = MATCH_TYPES.find((t) => t.value === matchType);
+    return type?.label || matchType;
+  };
+
+  const formatConditions = (conditionGroups: ConditionGroup[]) => {
+    if (!conditionGroups || conditionGroups.length === 0) {
+      return <span className="text-gray-400">Aucune condition</span>;
+    }
+
+    return (
+      <div className="text-xs space-y-1">
+        {conditionGroups.map((group, gIndex) => (
+          <div key={gIndex}>
+            {gIndex > 0 && (
+              <span className="text-blue-600 font-semibold">OU </span>
+            )}
+            {group.conditions.map((cond, cIndex) => (
+              <span key={cIndex}>
+                {cIndex > 0 && (
+                  <span className="text-gray-400">
+                    {group.operator === "and" ? " ET " : " OU "}
+                  </span>
+                )}
+                <span className="bg-gray-100 px-1 rounded">
+                  {getMatchTypeLabel(cond.match_type)}
+                </span>{" "}
+                <span className="font-mono">{cond.match_value}</span>
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   if (loading) {
@@ -522,119 +588,432 @@ export default function Categorization() {
                 <h3 className="text-xl font-bold mb-4">
                   {editingRule ? "Modifier la règle" : "Nouvelle règle"}
                 </h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Description de la règle
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.description}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          description: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Section: Identification */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-gray-900 border-b pb-2">
+                      Identification
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Description de la règle
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.description}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              description: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Priorité
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.priority}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              priority: parseInt(e.target.value),
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          min="0"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Plus élevé = plus prioritaire
+                        </p>
+                      </div>
+                      <div className="flex items-center pt-6">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              enabled: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label className="ml-2 block text-sm text-gray-700">
+                          Règle activée
+                        </label>
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Type de correspondance
-                    </label>
-                    <select
-                      value={formData.match_type}
-                      onChange={(e) =>
-                        setFormData({ ...formData, match_type: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      {MATCH_TYPES.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Section: Conditions de matching */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center border-b pb-2">
+                      <h4 className="text-sm font-semibold text-gray-900">
+                        Conditions de matching
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          Mode avancé
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAdvancedMode(!advancedMode)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            advancedMode ? "bg-blue-600" : "bg-gray-200"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              advancedMode ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {!advancedMode ? (
+                      /* Mode simple - une seule condition */
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Type de correspondance
+                          </label>
+                          <select
+                            value={
+                              formData.condition_groups[0]?.conditions[0]
+                                ?.match_type || "contains"
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                condition_groups: [
+                                  {
+                                    operator: "and",
+                                    conditions: [
+                                      {
+                                        match_type: e.target.value,
+                                        match_value:
+                                          formData.condition_groups[0]
+                                            ?.conditions[0]?.match_value || "",
+                                      },
+                                    ],
+                                  },
+                                ],
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                          >
+                            {MATCH_TYPES.map((type) => (
+                              <option
+                                key={type.value}
+                                value={type.value}
+                                className="text-gray-900"
+                              >
+                                {type.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Motif à rechercher
+                          </label>
+                          <input
+                            type="text"
+                            value={
+                              formData.condition_groups[0]?.conditions[0]
+                                ?.match_value || ""
+                            }
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                condition_groups: [
+                                  {
+                                    operator: "and",
+                                    conditions: [
+                                      {
+                                        match_type:
+                                          formData.condition_groups[0]
+                                            ?.conditions[0]?.match_type ||
+                                          "contains",
+                                        match_value: e.target.value,
+                                      },
+                                    ],
+                                  },
+                                ],
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            placeholder="CARREFOUR"
+                            required
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mode avancé - groupes de conditions */
+                      <div className="space-y-4">
+                        {formData.condition_groups.map((group, groupIndex) => (
+                          <div key={groupIndex}>
+                            {groupIndex > 0 && (
+                              <div className="text-center py-2">
+                                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                                  OU
+                                </span>
+                              </div>
+                            )}
+                            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                              <div className="flex justify-between items-center mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    Si
+                                  </span>
+                                  <select
+                                    value={group.operator}
+                                    onChange={(e) => {
+                                      const newGroups = [
+                                        ...formData.condition_groups,
+                                      ];
+                                      newGroups[groupIndex] = {
+                                        ...group,
+                                        operator: e.target.value as
+                                          | "and"
+                                          | "or",
+                                      };
+                                      setFormData({
+                                        ...formData,
+                                        condition_groups: newGroups,
+                                      });
+                                    }}
+                                    className="px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 bg-white"
+                                  >
+                                    <option
+                                      value="and"
+                                      className="text-gray-900"
+                                    >
+                                      TOUTES les conditions
+                                    </option>
+                                    <option
+                                      value="or"
+                                      className="text-gray-900"
+                                    >
+                                      AU MOINS UNE condition
+                                    </option>
+                                  </select>
+                                </div>
+                                {formData.condition_groups.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData({
+                                        ...formData,
+                                        condition_groups:
+                                          formData.condition_groups.filter(
+                                            (_, i) => i !== groupIndex
+                                          ),
+                                      });
+                                    }}
+                                    className="text-red-500 hover:text-red-700 text-sm"
+                                  >
+                                    Supprimer le groupe
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="space-y-2">
+                                {group.conditions.map(
+                                  (condition, condIndex) => (
+                                    <div key={condIndex}>
+                                      {condIndex > 0 && (
+                                        <div className="text-center text-sm text-gray-500 py-1">
+                                          {group.operator === "and"
+                                            ? "ET"
+                                            : "OU"}
+                                        </div>
+                                      )}
+                                      <div className="flex gap-2 items-center bg-white p-2 rounded border border-gray-200">
+                                        <select
+                                          value={condition.match_type}
+                                          onChange={(e) => {
+                                            const newGroups = [
+                                              ...formData.condition_groups,
+                                            ];
+                                            newGroups[groupIndex].conditions[
+                                              condIndex
+                                            ] = {
+                                              ...condition,
+                                              match_type: e.target.value,
+                                            };
+                                            setFormData({
+                                              ...formData,
+                                              condition_groups: newGroups,
+                                            });
+                                          }}
+                                          className="px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 bg-white"
+                                        >
+                                          {MATCH_TYPES.map((type) => (
+                                            <option
+                                              key={type.value}
+                                              value={type.value}
+                                              className="text-gray-900"
+                                            >
+                                              {type.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <input
+                                          type="text"
+                                          value={condition.match_value}
+                                          onChange={(e) => {
+                                            const newGroups = [
+                                              ...formData.condition_groups,
+                                            ];
+                                            newGroups[groupIndex].conditions[
+                                              condIndex
+                                            ] = {
+                                              ...condition,
+                                              match_value: e.target.value,
+                                            };
+                                            setFormData({
+                                              ...formData,
+                                              condition_groups: newGroups,
+                                            });
+                                          }}
+                                          className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                                          placeholder="Motif"
+                                          required
+                                        />
+                                        {group.conditions.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newGroups = [
+                                                ...formData.condition_groups,
+                                              ];
+                                              newGroups[groupIndex].conditions =
+                                                group.conditions.filter(
+                                                  (_, i) => i !== condIndex
+                                                );
+                                              setFormData({
+                                                ...formData,
+                                                condition_groups: newGroups,
+                                              });
+                                            }}
+                                            className="text-red-500 hover:text-red-700 px-2"
+                                          >
+                                            ×
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newGroups = [
+                                    ...formData.condition_groups,
+                                  ];
+                                  newGroups[groupIndex].conditions.push({
+                                    match_type: "contains",
+                                    match_value: "",
+                                  });
+                                  setFormData({
+                                    ...formData,
+                                    condition_groups: newGroups,
+                                  });
+                                }}
+                                className="mt-3 text-sm text-blue-600 hover:text-blue-800"
+                              >
+                                + Ajouter une condition
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({
+                              ...formData,
+                              condition_groups: [
+                                ...formData.condition_groups,
+                                {
+                                  operator: "and",
+                                  conditions: [
+                                    { match_type: "contains", match_value: "" },
+                                  ],
+                                },
+                              ],
+                            });
+                          }}
+                          className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors"
+                        >
+                          + Ajouter un groupe de conditions (OU)
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Motif à rechercher
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.match_value}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          match_value: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder={
-                        formData.match_type === "regex"
-                          ? "^CARREFOUR.*"
-                          : "CARREFOUR"
-                      }
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formData.match_type === "contains" &&
-                        "Ex: CARREFOUR (matche 'CARREFOUR MARKET')"}
-                      {formData.match_type === "starts_with" &&
-                        "Ex: VIR (matche 'VIR SALAIRE')"}
-                      {formData.match_type === "exact" &&
-                        "Ex: CARREFOUR (matche exactement)"}
-                      {formData.match_type === "regex" &&
-                        "Ex: ^PRLV.*SEPA (expression régulière)"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {/* Section: Catégorisation */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-gray-900 border-b pb-2">
                       Catégorisation
-                    </label>
-                    <select
-                      value={formData.categorization_type}
-                      onChange={(e) => {
-                        const newType = e.target.value;
-                        if (newType === "loan") {
-                          setFormData({
-                            ...formData,
-                            categorization_type: newType,
-                            processor_type: "loan",
-                            processor_config: {
-                              loan_amount: 0,
-                              annual_rate: 0,
-                              duration_months: 0,
-                              start_date: "",
-                              capital_account_id: "",
-                              interest_account_id: "",
-                            },
-                          });
-                        } else {
-                          setFormData({
-                            ...formData,
-                            categorization_type: newType,
-                            processor_type: "simple_split",
-                            processor_config: {
-                              splits: [{ account_id: "", percentage: 100 }],
-                              transaction_filter: "all",
-                            },
-                          });
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      {CATEGORIZATION_TYPES.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
+                    </h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Type de catégorisation
+                      </label>
+                      <select
+                        value={formData.categorization_type}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          if (newType === "loan") {
+                            setFormData({
+                              ...formData,
+                              categorization_type: newType,
+                              processor_type: "loan",
+                              processor_config: {
+                                loan_amount: 0,
+                                annual_rate: 0,
+                                duration_months: 0,
+                                start_date: "",
+                                capital_account_id: "",
+                                interest_account_id: "",
+                              },
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              categorization_type: newType,
+                              processor_type: "simple_split",
+                              processor_config: {
+                                splits: [{ account_id: "", percentage: 100 }],
+                                transaction_filter: "all",
+                              },
+                            });
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                      >
+                        {CATEGORIZATION_TYPES.map((type) => (
+                          <option
+                            key={type.value}
+                            value={type.value}
+                            className="text-gray-900"
+                          >
+                            {type.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {formData.categorization_type === "splitItem" ? (
@@ -657,10 +1036,14 @@ export default function Categorization() {
                               },
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                         >
                           {TRANSACTION_FILTERS.map((filter) => (
-                            <option key={filter.value} value={filter.value}>
+                            <option
+                              key={filter.value}
+                              value={filter.value}
+                              className="text-gray-900"
+                            >
                               {filter.label}
                             </option>
                           ))}
@@ -724,21 +1107,43 @@ export default function Categorization() {
                                         },
                                       });
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                                     required
                                   >
-                                    <option value="">
+                                    <option value="" className="text-gray-900">
                                       Sélectionnez un compte
                                     </option>
-                                    {accounts.map((account) => (
-                                      <option
-                                        key={account.accountId}
-                                        value={account.accountId}
+                                    {realAccounts.length > 0 && (
+                                      <optgroup
+                                        label="Comptes réels"
+                                        className="text-gray-900"
                                       >
-                                        {account.name} ({account.category} -{" "}
-                                        {account.sub_category})
-                                      </option>
-                                    ))}
+                                        {realAccounts.map((account) => (
+                                          <option
+                                            key={account.accountId}
+                                            value={account.accountId}
+                                            className="text-gray-900"
+                                          >
+                                            {account.name}
+                                          </option>
+                                        ))}
+                                      </optgroup>
+                                    )}
+                                    <optgroup
+                                      label="Comptes virtuels"
+                                      className="text-gray-900"
+                                    >
+                                      {accounts.map((account) => (
+                                        <option
+                                          key={account.accountId}
+                                          value={account.accountId}
+                                          className="text-gray-900"
+                                        >
+                                          {account.name} ({account.category} -{" "}
+                                          {account.sub_category})
+                                        </option>
+                                      ))}
+                                    </optgroup>
                                   </select>
                                 </div>
                                 <div className="w-24">
@@ -931,14 +1336,17 @@ export default function Categorization() {
                               },
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                           required
                         >
-                          <option value="">Sélectionnez un compte</option>
+                          <option value="" className="text-gray-900">
+                            Sélectionnez un compte
+                          </option>
                           {accounts.map((account) => (
                             <option
                               key={account.accountId}
                               value={account.accountId}
+                              className="text-gray-900"
                             >
                               {account.name} ({account.category} -{" "}
                               {account.sub_category})
@@ -967,14 +1375,17 @@ export default function Categorization() {
                               },
                             })
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                           required
                         >
-                          <option value="">Sélectionnez un compte</option>
+                          <option value="" className="text-gray-900">
+                            Sélectionnez un compte
+                          </option>
                           {accounts.map((account) => (
                             <option
                               key={account.accountId}
                               value={account.accountId}
+                              className="text-gray-900"
                             >
                               {account.name} ({account.category} -{" "}
                               {account.sub_category})
@@ -988,42 +1399,7 @@ export default function Categorization() {
                     </>
                   )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Priorité
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.priority}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          priority: parseInt(e.target.value),
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      min="0"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Plus le nombre est élevé, plus la règle est prioritaire
-                    </p>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.enabled}
-                      onChange={(e) =>
-                        setFormData({ ...formData, enabled: e.target.checked })
-                      }
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label className="ml-2 block text-sm text-gray-700">
-                      Règle activée
-                    </label>
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex gap-3 pt-4 border-t mt-6">
                     <button
                       type="submit"
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
@@ -1175,12 +1551,7 @@ export default function Categorization() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          <span className="inline-block bg-gray-100 px-2 py-1 rounded text-xs font-mono">
-                            {rule.match_type}
-                          </span>
-                        </div>
-                        <div className="text-sm text-gray-600 font-mono mt-1">
-                          {rule.match_value}
+                          {formatConditions(rule.condition_groups)}
                         </div>
                       </td>
                       <td className="px-6 py-4">

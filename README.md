@@ -69,7 +69,7 @@ cd back && poetry run pytest
 Dans back:
 ```bash
 pg_dump \
-  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  "postgresql://postgres.cdaunrvoljkqoimtrtpc:fzwYlFIMn0LMK0Oy@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
   -Fc \
   -f backup_$(date +%Y%m%d).dump
 ```

@@ -15,6 +15,32 @@ class MatchType(str, Enum):
     REGEX = "regex"
 
 
+class LogicalOperator(str, Enum):
+    """Logical operators for combining match conditions."""
+
+    AND = "and"
+    OR = "or"
+
+
+class MatchCondition(BaseModel):
+    """A single matching condition."""
+
+    match_type: MatchType = Field(..., description="Matching strategy")
+    match_value: str = Field(..., min_length=1, description="Pattern to match")
+
+
+class ConditionGroup(BaseModel):
+    """A group of conditions combined with a logical operator."""
+
+    operator: LogicalOperator = Field(
+        default=LogicalOperator.AND,
+        description="How to combine conditions (AND/OR)",
+    )
+    conditions: List[MatchCondition] = Field(
+        ..., min_length=1, description="List of conditions to evaluate"
+    )
+
+
 class Account(BaseModel):
     accountId: UUID
     created_at: datetime
@@ -211,10 +237,11 @@ class CategorizationRuleBase(BaseModel):
     description: str = Field(
         ..., min_length=1, description="Human-readable rule description"
     )
-    match_type: MatchType = Field(
-        ..., description="Matching strategy (contains/starts_with/exact/regex)"
+    condition_groups: List[ConditionGroup] = Field(
+        ...,
+        min_length=1,
+        description="Groups of conditions (groups are OR'd, conditions within use group operator)",
     )
-    match_value: str = Field(..., min_length=1, description="Pattern to match")
     account_ids: Optional[List[UUID]] = Field(
         None, description="Optional: Filter by source account IDs"
     )
