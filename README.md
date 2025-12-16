@@ -38,7 +38,7 @@ cd front && npm run dev
 
 In another terminal, run the following command to start the Nest.js server:
 ```bash
-cd back && poetry run uvicorn ploutos.api.main:app --reload --log-level debug
+cd back && poetry run uvicorn ploutos.api.main:app --reload --log-level debug --port 8080
 ```
 Go on the following url to access the website:
 ```
@@ -46,7 +46,7 @@ http://localhost:3000
 ```
 and on the following url to access the API:
 ```
-http://localhost:8000/docs
+http://localhost:8080/docs
 ```
 
 ## Tests
@@ -158,6 +158,6 @@ Todo: If you want to automatize the process, just go here : [Examples Nordigen](
 
 Pour accéder à la documentation Swagger de l'API, visitez :
 ```
-http://localhost:8000/docs
+http://localhost:8080/docs
 ```
 

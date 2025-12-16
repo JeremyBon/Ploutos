@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Navigation from "@/components/Navigation";
+import { API_URL } from "@/config/api";
 
 interface Account {
   accountId: string;
@@ -88,7 +89,6 @@ interface MatchingPreviewResult {
   matches: PreviewMatch[];
 }
 
-const API_URL = "http://localhost:8000";
 const MATCH_TYPES = [
   { value: "contains", label: "Contient", isAmount: false },
   { value: "starts_with", label: "Commence par", isAmount: false },

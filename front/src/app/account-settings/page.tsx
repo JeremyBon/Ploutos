@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import { API_URL } from "@/config/api";
 
 interface Account {
   accountId: string;
@@ -51,10 +52,8 @@ export default function AccountSettings() {
   const fetchAccounts = async (includeArchived: boolean = false) => {
     try {
       const [accountsResponse, currentAmountsResponse] = await Promise.all([
-        fetch(
-          `http://localhost:8000/accounts?include_archived=${includeArchived}`
-        ),
-        fetch("http://localhost:8000/accounts/current-amounts"),
+        fetch(`${API_URL}/accounts?include_archived=${includeArchived}`),
+        fetch("${API_URL}/accounts/current-amounts"),
       ]);
 
       if (!accountsResponse.ok) {
@@ -111,8 +110,8 @@ export default function AccountSettings() {
 
     try {
       const url = editingAccountId
-        ? `http://localhost:8000/accounts/${editingAccountId}`
-        : "http://localhost:8000/create-account";
+        ? `${API_URL}/accounts/${editingAccountId}`
+        : "${API_URL}/create-account";
       const method = editingAccountId ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -149,12 +148,9 @@ export default function AccountSettings() {
     }
 
     try {
-      const response = await fetch(
-        `http://localhost:8000/accounts/${accountId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`${API_URL}/accounts/${accountId}`, {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -173,12 +169,9 @@ export default function AccountSettings() {
     isCurrentlyActive: boolean
   ) => {
     try {
-      const response = await fetch(
-        `http://localhost:8000/accounts/${accountId}/archive`,
-        {
-          method: "PATCH",
-        }
-      );
+      const response = await fetch(`${API_URL}/accounts/${accountId}/archive`, {
+        method: "PATCH",
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

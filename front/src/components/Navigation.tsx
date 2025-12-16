@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { API_URL } from "@/config/api";
 
 export default function Navigation() {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,7 +13,7 @@ export default function Navigation() {
   const handleTestClick = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("http://localhost:8000/test");
+      const response = await fetch(`${API_URL}/test`);
       const data = await response.json();
       setApiResponse(data.message);
       setShowToast(true);

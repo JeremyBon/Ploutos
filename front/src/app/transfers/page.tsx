@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import { API_URL } from "@/config/api";
 
 interface Transaction {
   transactionId: string;
@@ -43,8 +44,6 @@ interface Transfer {
   masterAccountIsReal: boolean;
   TransactionsSlaves: TransactionSlave[];
 }
-
-const API_URL = "http://localhost:8000";
 
 export default function Transfers() {
   const [candidates, setCandidates] = useState<TransferCandidate[]>([]);
