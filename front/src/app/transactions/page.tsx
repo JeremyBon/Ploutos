@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import { API_URL } from "@/config/api";
 
 // Icons components
 const FilterIcon = () => (
@@ -145,8 +146,6 @@ interface Transaction {
   TransactionsSlaves: TransactionSlave[];
   masterAccountName: string;
 }
-
-const API_URL = "http://localhost:8000";
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);

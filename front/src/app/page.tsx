@@ -27,6 +27,7 @@ ChartJS.register(
   ChartLegend
 );
 import Navigation from "@/components/Navigation";
+import { API_URL } from "@/config/api";
 
 interface Account {
   account_id: string;
@@ -144,9 +145,7 @@ export default function Home() {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8000/accounts/current-amounts"
-      );
+      const response = await fetch("${API_URL}/accounts/current-amounts");
       if (!response.ok) {
         throw new Error("Failed to fetch accounts");
       }
@@ -161,7 +160,7 @@ export default function Home() {
 
   const fetchAllAccounts = async () => {
     try {
-      const response = await fetch("http://localhost:8000/accounts");
+      const response = await fetch("${API_URL}/accounts");
       if (!response.ok) {
         throw new Error("Failed to fetch all accounts");
       }
@@ -183,7 +182,7 @@ export default function Home() {
       const endDate = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${end.getDate()}`;
 
       const response = await fetch(
-        `http://localhost:8000/transactions?date_from=${startDate}&date_to=${endDate}`
+        `${API_URL}/transactions?date_from=${startDate}&date_to=${endDate}`
       );
       if (!response.ok) {
         throw new Error("Failed to fetch transactions");
@@ -575,7 +574,7 @@ export default function Home() {
     try {
       // Mettre à jour la transaction principale
       const updateResponse = await fetch(
-        `http://localhost:8000/transactions/${editingTransaction.transactionId}`,
+        `${API_URL}/transactions/${editingTransaction.transactionId}`,
         {
           method: "PUT",
           headers: {
@@ -594,7 +593,7 @@ export default function Home() {
 
       // Mettre à jour les slaves transactions
       const slaveUpdateResponse = await fetch(
-        `http://localhost:8000/transactions/${editingTransaction.transactionId}/slaves`,
+        `${API_URL}/transactions/${editingTransaction.transactionId}/slaves`,
         {
           method: "PUT",
           headers: {
