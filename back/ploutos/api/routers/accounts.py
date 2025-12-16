@@ -103,11 +103,41 @@ async def update_account(account_id: str, account: AccountUpdate, db: SessionDep
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(account_id: str, db: SessionDep):
+    # Check if account exists
+    account = db.table("Accounts").select("*").eq("accountId", account_id).execute()
+    if not account.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Check for linked transactions
+    transactions = (
+        db.table("Transactions")
+        .select("transactionId")
+        .eq("accountId", account_id)
+        .limit(1)
+        .execute()
+    )
+    if transactions.data:
+        raise HTTPException(
+            status_code=400,
+            detail="Ce compte possède des transactions associées. Veuillez l'archiver au lieu de le supprimer.",
+        )
+
+    # Check for linked slave transactions
+    slave_transactions = (
+        db.table("TransactionsSlaves")
+        .select("slaveId")
+        .eq("accountId", account_id)
+        .limit(1)
+        .execute()
+    )
+    if slave_transactions.data:
+        raise HTTPException(
+            status_code=400,
+            detail="Ce compte possède des transactions associées. Veuillez l'archiver au lieu de le supprimer.",
+        )
+
     # Delete the account
     response = db.table("Accounts").delete().eq("accountId", account_id).execute()
-
-    if not response.data:
-        raise HTTPException(status_code=404, detail="Account not found")
 
     logger.debug(f"Deleted account: {response}")
     return {"message": "Account deleted successfully"}
