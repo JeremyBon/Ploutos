@@ -53,7 +53,7 @@ export default function AccountSettings() {
     try {
       const [accountsResponse, currentAmountsResponse] = await Promise.all([
         fetch(`${API_URL}/accounts?include_archived=${includeArchived}`),
-        fetch("${API_URL}/accounts/current-amounts"),
+        fetch(`${API_URL}/accounts/current-amounts`),
       ]);
 
       if (!accountsResponse.ok) {
@@ -111,7 +111,7 @@ export default function AccountSettings() {
     try {
       const url = editingAccountId
         ? `${API_URL}/accounts/${editingAccountId}`
-        : "${API_URL}/create-account";
+        : `${API_URL}/create-account`;
       const method = editingAccountId ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -153,7 +153,11 @@ export default function AccountSettings() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        setError(
+          errorData.detail || "Une erreur est survenue lors de la suppression."
+        );
+        return;
       }
 
       setToastMessage("Compte supprimé avec succès");

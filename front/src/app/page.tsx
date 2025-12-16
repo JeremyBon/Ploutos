@@ -145,7 +145,7 @@ export default function Home() {
 
   const fetchAccounts = async () => {
     try {
-      const response = await fetch("${API_URL}/accounts/current-amounts");
+      const response = await fetch(`${API_URL}/accounts/current-amounts`);
       if (!response.ok) {
         throw new Error("Failed to fetch accounts");
       }
@@ -160,7 +160,7 @@ export default function Home() {
 
   const fetchAllAccounts = async () => {
     try {
-      const response = await fetch("${API_URL}/accounts");
+      const response = await fetch(`${API_URL}/accounts`);
       if (!response.ok) {
         throw new Error("Failed to fetch all accounts");
       }

@@ -386,6 +386,18 @@ export default function Categorization() {
       : accountId;
   };
 
+  const groupAccountsByCategory = (accountList: Account[]) => {
+    return accountList.reduce(
+      (acc, account) => {
+        const key = account.category;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(account);
+        return acc;
+      },
+      {} as Record<string, Account[]>
+    );
+  };
+
   const formatSplits = (config: ProcessorConfig, processorType: string) => {
     if (processorType === "loan") {
       return (
@@ -1183,21 +1195,32 @@ export default function Categorization() {
                                         ))}
                                       </optgroup>
                                     )}
-                                    <optgroup
-                                      label="Comptes virtuels"
-                                      className="text-gray-900"
-                                    >
-                                      {accounts.map((account) => (
-                                        <option
-                                          key={account.accountId}
-                                          value={account.accountId}
+                                    {Object.entries(
+                                      groupAccountsByCategory(accounts)
+                                    )
+                                      .sort(([a], [b]) => a.localeCompare(b))
+                                      .map(([category, categoryAccounts]) => (
+                                        <optgroup
+                                          key={category}
+                                          label={category}
                                           className="text-gray-900"
                                         >
-                                          {account.name} ({account.category} -{" "}
-                                          {account.sub_category})
-                                        </option>
+                                          {categoryAccounts
+                                            .sort((a, b) =>
+                                              a.name.localeCompare(b.name)
+                                            )
+                                            .map((account) => (
+                                              <option
+                                                key={account.accountId}
+                                                value={account.accountId}
+                                                className="text-gray-900"
+                                              >
+                                                {account.name} (
+                                                {account.sub_category})
+                                              </option>
+                                            ))}
+                                        </optgroup>
                                       ))}
-                                    </optgroup>
                                   </select>
                                 </div>
                                 <div className="w-24">
@@ -1396,16 +1419,27 @@ export default function Categorization() {
                           <option value="" className="text-gray-900">
                             Sélectionnez un compte
                           </option>
-                          {accounts.map((account) => (
-                            <option
-                              key={account.accountId}
-                              value={account.accountId}
-                              className="text-gray-900"
-                            >
-                              {account.name} ({account.category} -{" "}
-                              {account.sub_category})
-                            </option>
-                          ))}
+                          {Object.entries(groupAccountsByCategory(accounts))
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([category, categoryAccounts]) => (
+                              <optgroup
+                                key={category}
+                                label={category}
+                                className="text-gray-900"
+                              >
+                                {categoryAccounts
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((account) => (
+                                    <option
+                                      key={account.accountId}
+                                      value={account.accountId}
+                                      className="text-gray-900"
+                                    >
+                                      {account.name} ({account.sub_category})
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           Compte pour la partie capital du remboursement
@@ -1435,16 +1469,27 @@ export default function Categorization() {
                           <option value="" className="text-gray-900">
                             Sélectionnez un compte
                           </option>
-                          {accounts.map((account) => (
-                            <option
-                              key={account.accountId}
-                              value={account.accountId}
-                              className="text-gray-900"
-                            >
-                              {account.name} ({account.category} -{" "}
-                              {account.sub_category})
-                            </option>
-                          ))}
+                          {Object.entries(groupAccountsByCategory(accounts))
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([category, categoryAccounts]) => (
+                              <optgroup
+                                key={category}
+                                label={category}
+                                className="text-gray-900"
+                              >
+                                {categoryAccounts
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((account) => (
+                                    <option
+                                      key={account.accountId}
+                                      value={account.accountId}
+                                      className="text-gray-900"
+                                    >
+                                      {account.name} ({account.sub_category})
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           Compte pour la partie intérêts du remboursement
