@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
 import { API_URL } from "@/config/api";
 
@@ -377,6 +377,46 @@ export default function Categorization() {
       },
     });
   };
+
+  const isRuleFormDirty = useMemo(() => {
+    if (!editingRule) return true; // Always allow submit for new rules
+
+    // Compare description
+    if (formData.description !== editingRule.description) return true;
+
+    // Compare priority
+    if (formData.priority !== editingRule.priority) return true;
+
+    // Compare enabled
+    if (formData.enabled !== editingRule.enabled) return true;
+
+    // Compare processor_type
+    if (formData.processor_type !== editingRule.processor_type) return true;
+
+    // Compare condition_groups (deep comparison)
+    if (
+      JSON.stringify(formData.condition_groups) !==
+      JSON.stringify(editingRule.condition_groups)
+    )
+      return true;
+
+    // Compare account_ids
+    const originalAccountIds = editingRule.account_ids || [];
+    if (
+      JSON.stringify(formData.account_ids) !==
+      JSON.stringify(originalAccountIds)
+    )
+      return true;
+
+    // Compare processor_config (deep comparison)
+    if (
+      JSON.stringify(formData.processor_config) !==
+      JSON.stringify(editingRule.processor_config)
+    )
+      return true;
+
+    return false;
+  }, [editingRule, formData]);
 
   const getAccountName = (accountId?: string) => {
     if (!accountId) return "N/A";
@@ -1498,13 +1538,7 @@ export default function Categorization() {
                     </>
                   )}
 
-                  <div className="flex gap-3 pt-4 border-t mt-6">
-                    <button
-                      type="submit"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-                    >
-                      {editingRule ? "Modifier" : "Créer"}
-                    </button>
+                  <div className="flex justify-end gap-3 pt-4 border-t mt-6">
                     <button
                       type="button"
                       onClick={() => {
@@ -1515,6 +1549,17 @@ export default function Categorization() {
                       className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium"
                     >
                       Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!isRuleFormDirty}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+                        isRuleFormDirty
+                          ? "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
+                      {editingRule ? "Modifier" : "Créer"}
                     </button>
                   </div>
                 </form>

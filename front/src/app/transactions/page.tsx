@@ -164,7 +164,7 @@ export default function Transactions() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editedTransaction, setEditedTransaction] =
     useState<Transaction | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [, setHasChanges] = useState(false);
   const [editedSlaves, setEditedSlaves] = useState<EditableSlave[]>([]);
   const [originalSlaves, setOriginalSlaves] = useState<EditableSlave[]>([]);
   const [sortBy, setSortBy] = useState<"date" | "amount">("date");
@@ -456,6 +456,19 @@ export default function Transactions() {
       (slave) => Number(slave.amount) <= 0 || !slave.accountId
     );
   }, [editedSlaves]);
+
+  const mainTransactionHasChanges = useMemo(() => {
+    if (!selectedTransaction || !editedTransaction) return false;
+    return (
+      editedTransaction.description !== selectedTransaction.description ||
+      editedTransaction.date.split("T")[0] !==
+        selectedTransaction.date.split("T")[0]
+    );
+  }, [selectedTransaction, editedTransaction]);
+
+  const hasAnyChanges = useMemo(() => {
+    return mainTransactionHasChanges || slavesHaveChanges;
+  }, [mainTransactionHasChanges, slavesHaveChanges]);
 
   const handleCancel = () => {
     if (!selectedTransaction) return;
@@ -1138,7 +1151,7 @@ export default function Transactions() {
                 )}
               </div>
               <div className="flex justify-end space-x-3 mt-6">
-                {hasChanges && (
+                {hasAnyChanges && (
                   <button
                     onClick={handleCancel}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
@@ -1148,9 +1161,9 @@ export default function Transactions() {
                 )}
                 <button
                   onClick={handleSave}
-                  disabled={hasInvalidSlaves}
+                  disabled={hasInvalidSlaves || !hasAnyChanges}
                   className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
-                    hasInvalidSlaves
+                    hasInvalidSlaves || !hasAnyChanges
                       ? "bg-gray-400 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700"
                   }`}

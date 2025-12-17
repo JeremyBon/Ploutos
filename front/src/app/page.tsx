@@ -142,6 +142,12 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [originalEditForm, setOriginalEditForm] = useState({
+    description: "",
+  });
+  const [originalEditSlaves, setOriginalEditSlaves] = useState<
+    TransactionSlave[]
+  >([]);
 
   const fetchAccounts = async () => {
     try {
@@ -471,10 +477,18 @@ export default function Home() {
       });
       setSlaveCategoryFilters(initialFilters);
       setSlaveAccountTypes(initialTypes);
+
+      // Stocker les valeurs originales pour la détection de changements
+      setOriginalEditForm({
+        description: transaction.description,
+      });
+      setOriginalEditSlaves(JSON.parse(JSON.stringify(slaves)));
     } else {
       setEditSlaves([]);
       setSlaveCategoryFilters({});
       setSlaveAccountTypes({});
+      setOriginalEditForm({ description: transaction.description });
+      setOriginalEditSlaves([]);
     }
 
     setShowEditModal(true);
@@ -493,6 +507,8 @@ export default function Home() {
     setEditSlaves([]);
     setSlaveCategoryFilters({});
     setSlaveAccountTypes({});
+    setOriginalEditForm({ description: "" });
+    setOriginalEditSlaves([]);
   };
 
   // Fonction pour modifier un slave
@@ -524,11 +540,34 @@ export default function Home() {
     }, 0);
   };
 
+  // Vérifier si le formulaire a été modifié
+  const isEditFormDirty = useMemo(() => {
+    // Check if description changed
+    if (editForm.description !== originalEditForm.description) return true;
+
+    // Check slaves changes
+    if (editSlaves.length !== originalEditSlaves.length) return true;
+
+    // Deep compare slaves
+    return editSlaves.some((slave, index) => {
+      const original = originalEditSlaves[index];
+      if (!original) return true;
+      return (
+        slave.accountId !== original.accountId ||
+        slave.amount !== original.amount ||
+        slave.type !== original.type
+      );
+    });
+  }, [editForm, originalEditForm, editSlaves, originalEditSlaves]);
+
   // Fonction pour vérifier si la sauvegarde est possible
   // Règle : crédit maître - débit maître = -(crédit slaves - débit slaves)
   // Équivalent : masterBalance = slavesBalance (où slavesBalance = débits - crédits)
   const canSave = () => {
     if (!editingTransaction) return false;
+
+    // Doit avoir des changements pour sauvegarder
+    if (!isEditFormDirty) return false;
 
     // Vérifier qu'aucun slave n'a un montant <= 0
     const hasInvalidSlaves = editSlaves.some(

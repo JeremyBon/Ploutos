@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Navigation from "@/components/Navigation";
 import { API_URL } from "@/config/api";
+import { useFormDirty } from "@/hooks/useFormDirty";
 
 interface Account {
   accountId: string;
@@ -35,14 +36,22 @@ export default function AccountSettings() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-  const [accountForm, setAccountForm] = useState<AccountFormData>({
+  const defaultAccountForm: AccountFormData = {
     name: "",
     category: "",
     sub_category: "",
     is_real: true,
     original_amount: 0,
     active: true,
-  });
+  };
+  const {
+    formValues: accountForm,
+    isDirty: isAccountFormDirty,
+    isFieldDirty: isAccountFieldDirty,
+    setFormValues: setAccountForm,
+    setOriginalValues: setOriginalAccountForm,
+    clearForm: clearAccountForm,
+  } = useFormDirty<AccountFormData>(defaultAccountForm);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"real" | "virtual">("real");
   const [activeFilterKey, setActiveFilterKey] = useState<string>("all");
@@ -195,7 +204,7 @@ export default function AccountSettings() {
 
   const handleEdit = (account: Account) => {
     setEditingAccountId(account.accountId);
-    setAccountForm({
+    setOriginalAccountForm({
       name: account.name,
       category: account.category,
       sub_category: account.sub_category,
@@ -207,14 +216,7 @@ export default function AccountSettings() {
   };
 
   const resetForm = () => {
-    setAccountForm({
-      name: "",
-      category: "",
-      sub_category: "",
-      is_real: true,
-      original_amount: 0,
-      active: true,
-    });
+    clearAccountForm(defaultAccountForm);
     setEditingAccountId(null);
   };
 
@@ -643,7 +645,11 @@ export default function AccountSettings() {
                   onChange={(e) =>
                     setAccountForm({ ...accountForm, name: e.target.value })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className={`w-full px-4 py-3 rounded-xl border text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                    isAccountFieldDirty("name")
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-gray-300"
+                  }`}
                   required
                 />
               </div>
@@ -660,7 +666,11 @@ export default function AccountSettings() {
                       category: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className={`w-full px-4 py-3 rounded-xl border text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                    isAccountFieldDirty("category")
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-gray-300"
+                  }`}
                   required
                 />
               </div>
@@ -677,7 +687,11 @@ export default function AccountSettings() {
                       sub_category: e.target.value,
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className={`w-full px-4 py-3 rounded-xl border text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                    isAccountFieldDirty("sub_category")
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-gray-300"
+                  }`}
                   required
                 />
               </div>
@@ -695,11 +709,21 @@ export default function AccountSettings() {
                       original_amount: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition"
+                  className={`w-full px-4 py-3 rounded-xl border text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition ${
+                    isAccountFieldDirty("original_amount")
+                      ? "border-amber-400 bg-amber-50"
+                      : "border-gray-300"
+                  }`}
                   required
                 />
               </div>
-              <div className="mb-5">
+              <div
+                className={`mb-5 p-3 rounded-xl transition ${
+                  isAccountFieldDirty("is_real")
+                    ? "bg-amber-50 border border-amber-400"
+                    : ""
+                }`}
+              >
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -717,7 +741,13 @@ export default function AccountSettings() {
                   </span>
                 </label>
               </div>
-              <div className="mb-6">
+              <div
+                className={`mb-6 p-3 rounded-xl transition ${
+                  isAccountFieldDirty("active")
+                    ? "bg-amber-50 border border-amber-400"
+                    : ""
+                }`}
+              >
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -748,7 +778,10 @@ export default function AccountSettings() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating}
+                  disabled={
+                    isCreating ||
+                    (editingAccountId !== null && !isAccountFormDirty)
+                  }
                   className="px-6 py-3 text-white bg-blue-600 rounded-xl hover:bg-blue-700 font-medium transition disabled:opacity-50"
                 >
                   {isCreating ? "Enregistrement..." : "Enregistrer"}
