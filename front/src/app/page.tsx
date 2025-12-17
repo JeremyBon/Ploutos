@@ -142,6 +142,7 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [categoryDisplayCount, setCategoryDisplayCount] = useState<3 | 8>(3);
   const [originalEditForm, setOriginalEditForm] = useState({
     description: "",
   });
@@ -854,16 +855,18 @@ export default function Home() {
       .sort((a, b) => b.total - a.total);
 
     // Limiter le nombre de catégories affichées
-    return arr.slice(0, 8).map((v) => ({
+    return arr.slice(0, categoryDisplayCount).map((v) => ({
       name: v.category,
       Revenus: v.revenues,
       Depenses: v.expenses,
     }));
-  }, [monthlySummary]);
+  }, [monthlySummary, categoryDisplayCount]);
 
   // Préparer les données et options pour Chart.js
   const chartJsData = useMemo(() => {
-    const labels = chartData.map((d) => d.name);
+    const labels = chartData.map((d) =>
+      d.name.length > 12 ? d.name.substring(0, 10) + "..." : d.name
+    );
     return {
       labels,
       datasets: [
@@ -890,6 +893,11 @@ export default function Home() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            title: function (context: any) {
+              const index = context[0]?.dataIndex;
+              return chartData[index]?.name || "";
+            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function (context: any) {
               const value = context.raw || 0;
               return value.toLocaleString("fr-FR", {
@@ -901,11 +909,17 @@ export default function Home() {
         },
       },
       scales: {
-        x: { ticks: { maxRotation: 0, autoSkip: false } },
+        x: {
+          ticks: {
+            maxRotation: 45,
+            minRotation: 0,
+            autoSkip: false,
+          },
+        },
         y: { beginAtZero: true },
       },
     }),
-    []
+    [chartData]
   );
 
   const patrimonyChartOptions = useMemo(
@@ -1357,6 +1371,28 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     Revenus / Dépenses par catégorie
                   </h3>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setCategoryDisplayCount(3)}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                        categoryDisplayCount === 3
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      Top 3
+                    </button>
+                    <button
+                      onClick={() => setCategoryDisplayCount(8)}
+                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                        categoryDisplayCount === 8
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      Top 8
+                    </button>
+                  </div>
                 </div>
                 {chartData.length === 0 ? (
                   <div className="text-gray-500 text-center py-8">
