@@ -295,13 +295,13 @@ export default function Categorization() {
 
     setFormData({
       description: rule.description,
-      condition_groups: rule.condition_groups,
-      account_ids: rule.account_ids || [],
+      condition_groups: JSON.parse(JSON.stringify(rule.condition_groups)),
+      account_ids: rule.account_ids ? [...rule.account_ids] : [],
       priority: rule.priority,
       enabled: rule.enabled,
       categorization_type: categorizationType,
       processor_type: rule.processor_type,
-      processor_config: rule.processor_config,
+      processor_config: JSON.parse(JSON.stringify(rule.processor_config)),
     });
     setShowRuleForm(true);
   };

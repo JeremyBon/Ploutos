@@ -1,5 +1,6 @@
 """Matching Service - Business logic for automatic transaction categorization."""
 
+import re
 from datetime import datetime
 from typing import List
 
@@ -126,7 +127,7 @@ def _apply_condition_filter(query, condition: dict):
         condition: Dict with match_type and match_value
 
     Returns:
-        Query with condition filter applied
+        Query with condition filter applied, or None if condition is regex
     """
     match_type = condition["match_type"]
     value = condition["match_value"]
@@ -139,7 +140,8 @@ def _apply_condition_filter(query, condition: dict):
     elif match_type == MatchType.EXACT.value:
         return query.ilike("description", value)
     elif match_type == MatchType.REGEX.value:
-        return query.filter("description", "~*", value)
+        # Regex is handled separately via RPC, skip here
+        return None
 
     # Amount matching
     elif match_type == MatchType.AMOUNT_GT.value:
@@ -157,6 +159,79 @@ def _apply_condition_filter(query, condition: dict):
         raise ValueError(f"Unknown match type: {match_type}")
 
 
+def _is_regex_condition(condition: dict) -> bool:
+    """Check if a condition is a regex condition."""
+    return condition.get("match_type") == MatchType.REGEX.value
+
+
+def _apply_regex_filter_python(
+    transactions: List[dict], regex_pattern: str
+) -> List[dict]:
+    """Apply regex filter in Python on transaction descriptions.
+
+    Args:
+        transactions: List of transaction dicts
+        regex_pattern: Regex pattern to match
+
+    Returns:
+        Filtered list of transactions matching the regex
+    """
+    try:
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
+        return [tx for tx in transactions if pattern.search(tx.get("description", ""))]
+    except re.error as e:
+        logger.error(f"Invalid regex pattern '{regex_pattern}': {e}")
+        return []
+
+
+async def _fetch_regex_matches_rpc(db, regex_pattern: str, rule: dict) -> List[dict]:
+    """Fetch transactions matching regex using RPC function.
+
+    Args:
+        db: Supabase client
+        regex_pattern: Regex pattern to match
+        rule: Rule containing account_ids and processor_config
+
+    Returns:
+        List of matching transaction dicts
+    """
+    account_ids = rule.get("account_ids")
+    transaction_filter = rule.get("processor_config", {}).get("transaction_filter")
+
+    params = {"regex_pattern": regex_pattern}
+    if account_ids:
+        params["account_ids"] = account_ids
+    if transaction_filter and transaction_filter != "all":
+        params["transaction_type"] = transaction_filter
+
+    response = db.rpc("match_transactions_regex", params).execute()
+
+    if not response.data:
+        return []
+
+    # Fetch full transaction data with slaves for matched transactions
+    tx_ids = [tx["transactionId"] for tx in response.data]
+    if not tx_ids:
+        return []
+
+    full_response = (
+        db.table("Transactions")
+        .select(
+            """
+            *,
+            TransactionsSlaves!inner (
+                *,
+                Accounts!inner (*)
+            )
+        """
+        )
+        .in_("transactionId", tx_ids)
+        .execute()
+    )
+
+    return _filter_single_slave(full_response.data) if full_response.data else []
+
+
 def _filter_single_slave(transactions: List[dict]) -> List[dict]:
     """Filter to ensure exactly 1 slave per transaction."""
     return [tx for tx in transactions if len(tx.get("TransactionsSlaves", [])) == 1]
@@ -168,6 +243,7 @@ async def _match_and_conditions(
     """Match transactions where ALL conditions are true (AND logic).
 
     Chains all condition filters in a single query.
+    Regex conditions are handled via RPC then filtered in Python.
 
     Args:
         db: Supabase client
@@ -181,15 +257,31 @@ async def _match_and_conditions(
     if not conditions:
         return []
 
+    # Separate regex and non-regex conditions
+    regex_conditions = [c for c in conditions if _is_regex_condition(c)]
+    non_regex_conditions = [c for c in conditions if not _is_regex_condition(c)]
+
+    # If only regex conditions, use RPC for first then filter with others in Python
+    if regex_conditions and not non_regex_conditions:
+        first_regex = regex_conditions[0]
+        matched = await _fetch_regex_matches_rpc(db, first_regex["match_value"], rule)
+        # Apply remaining regex conditions in Python
+        for cond in regex_conditions[1:]:
+            matched = _apply_regex_filter_python(matched, cond["match_value"])
+        return matched
+
+    # Fetch with non-regex conditions via Supabase
     all_matched = []
     offset = 0
 
     while True:
         query = _build_base_query(db, rule)
 
-        # Chain all conditions (AND logic)
-        for condition in conditions:
-            query = _apply_condition_filter(query, condition)
+        # Chain all non-regex conditions (AND logic)
+        for condition in non_regex_conditions:
+            result = _apply_condition_filter(query, condition)
+            if result is not None:
+                query = result
 
         response = query.range(offset, offset + page_size - 1).execute()
 
@@ -204,6 +296,10 @@ async def _match_and_conditions(
 
         offset += page_size
 
+    # Apply regex conditions in Python if any
+    for cond in regex_conditions:
+        all_matched = _apply_regex_filter_python(all_matched, cond["match_value"])
+
     return all_matched
 
 
@@ -213,6 +309,7 @@ async def _match_or_conditions(
     """Match transactions where ANY condition is true (OR logic).
 
     Executes separate queries for each condition and unions results.
+    Regex conditions are handled via RPC.
 
     Args:
         db: Supabase client
@@ -226,6 +323,16 @@ async def _match_or_conditions(
     all_matched = {}
 
     for condition in conditions:
+        # Handle regex conditions via RPC
+        if _is_regex_condition(condition):
+            matched = await _fetch_regex_matches_rpc(db, condition["match_value"], rule)
+            for tx in matched:
+                tx_id = tx["transactionId"]
+                if tx_id not in all_matched:
+                    all_matched[tx_id] = tx
+            continue
+
+        # Handle non-regex conditions via Supabase query
         offset = 0
         while True:
             query = _build_base_query(db, rule)

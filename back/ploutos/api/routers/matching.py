@@ -289,5 +289,5 @@ async def preview_rule_matching(rule_id: str, db: SessionDep):
         )
 
     except Exception as e:
-        logger.error(f"Error in matching preview: {e}", exc_info=True)
+        logger.error("Error in matching preview: {}", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

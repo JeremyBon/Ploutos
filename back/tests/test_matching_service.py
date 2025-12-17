@@ -140,8 +140,8 @@ class TestApplyConditionFilterDescription:
         mock_query.ilike.assert_called_once_with("description", "PAIEMENT CB CARREFOUR")
         assert result == mock_query
 
-    def test_regex_builds_filter_query(self, mock_query):
-        """REGEX doit générer un filtre regex case-insensitive."""
+    def test_regex_returns_none_handled_via_rpc(self, mock_query):
+        """REGEX retourne None car géré séparément via RPC."""
         condition = {
             "match_type": MatchType.REGEX.value,
             "match_value": r"PAIEMENT.*CB.*\d{4}",
@@ -149,10 +149,9 @@ class TestApplyConditionFilterDescription:
 
         result = _apply_condition_filter(mock_query, condition)
 
-        mock_query.filter.assert_called_once_with(
-            "description", "~*", r"PAIEMENT.*CB.*\d{4}"
-        )
-        assert result == mock_query
+        # Regex conditions are handled via RPC, not query filter
+        mock_query.filter.assert_not_called()
+        assert result is None
 
 
 # =============================================================================
