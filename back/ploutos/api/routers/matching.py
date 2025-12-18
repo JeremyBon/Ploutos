@@ -198,7 +198,7 @@ async def process_matching(db: SessionDep):
         )
 
     except Exception as e:
-        logger.error(f"Error in matching process: {e}", exc_info=True)
+        logger.error("Error in matching process: {}", str(e), exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -229,7 +229,7 @@ async def get_matching_stats(db: SessionDep):
         )
 
     except Exception as e:
-        logger.error(f"Error getting matching stats: {e}")
+        logger.error("Error getting matching stats: {}", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
