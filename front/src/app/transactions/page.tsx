@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import TransactionEditModal from "@/components/TransactionEditModal";
 import { API_URL } from "@/config/api";
 
 // Icons components
@@ -125,15 +126,6 @@ interface TransactionSlave {
   slaveAccountName?: string;
 }
 
-interface EditableSlave {
-  slaveId: string;
-  accountId: string;
-  amount: number;
-  date: string;
-  type: string;
-  isNew?: boolean;
-}
-
 interface Transaction {
   transactionId: string;
   accountId: string;
@@ -162,11 +154,6 @@ export default function Transactions() {
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editedTransaction, setEditedTransaction] =
-    useState<Transaction | null>(null);
-  const [, setHasChanges] = useState(false);
-  const [editedSlaves, setEditedSlaves] = useState<EditableSlave[]>([]);
-  const [originalSlaves, setOriginalSlaves] = useState<EditableSlave[]>([]);
   const [sortBy, setSortBy] = useState<"date" | "amount">("date");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [amountMin, setAmountMin] = useState<string>("");
@@ -388,164 +375,73 @@ export default function Transactions() {
 
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
-    setEditedTransaction(transaction);
-    const slaves = transaction.TransactionsSlaves.map((s) => ({
-      slaveId: s.slaveId,
-      accountId: s.accountId,
-      amount: s.amount,
-      date: s.date.split("T")[0],
-      type: s.type,
-    }));
-    setEditedSlaves(slaves);
-    setOriginalSlaves(JSON.parse(JSON.stringify(slaves)));
     setIsModalOpen(true);
-    setHasChanges(false);
-  };
-
-  const handleTransactionChange = (field: keyof Transaction, value: string) => {
-    if (!editedTransaction) return;
-    setEditedTransaction({ ...editedTransaction, [field]: value });
-    setHasChanges(true);
-  };
-
-  const handleSlaveChange = (
-    index: number,
-    field: keyof EditableSlave,
-    value: string | number
-  ) => {
-    const newSlaves = [...editedSlaves];
-    newSlaves[index] = { ...newSlaves[index], [field]: value };
-    setEditedSlaves(newSlaves);
-    setHasChanges(true);
-  };
-
-  const handleAddSlave = () => {
-    if (!editedTransaction) return;
-    const newSlave: EditableSlave = {
-      slaveId: crypto.randomUUID(),
-      accountId: "",
-      amount: 0,
-      date: editedTransaction.date.split("T")[0],
-      type: editedTransaction.type === "debit" ? "credit" : "debit",
-      isNew: true,
-    };
-    setEditedSlaves([...editedSlaves, newSlave]);
-    setHasChanges(true);
-  };
-
-  const handleRemoveSlave = (index: number) => {
-    setEditedSlaves(editedSlaves.filter((_, i) => i !== index));
-    setHasChanges(true);
-  };
-
-  const slavesHaveChanges = useMemo(() => {
-    if (editedSlaves.length !== originalSlaves.length) return true;
-    return editedSlaves.some((slave, index) => {
-      const original = originalSlaves[index];
-      return (
-        slave.accountId !== original.accountId ||
-        slave.amount !== original.amount ||
-        slave.date !== original.date ||
-        slave.type !== original.type
-      );
-    });
-  }, [editedSlaves, originalSlaves]);
-
-  const hasInvalidSlaves = useMemo(() => {
-    return editedSlaves.some(
-      (slave) => Number(slave.amount) <= 0 || !slave.accountId
-    );
-  }, [editedSlaves]);
-
-  const mainTransactionHasChanges = useMemo(() => {
-    if (!selectedTransaction || !editedTransaction) return false;
-    return (
-      editedTransaction.description !== selectedTransaction.description ||
-      editedTransaction.date.split("T")[0] !==
-        selectedTransaction.date.split("T")[0]
-    );
-  }, [selectedTransaction, editedTransaction]);
-
-  const hasAnyChanges = useMemo(() => {
-    return mainTransactionHasChanges || slavesHaveChanges;
-  }, [mainTransactionHasChanges, slavesHaveChanges]);
-
-  const handleCancel = () => {
-    if (!selectedTransaction) return;
-    setEditedTransaction(selectedTransaction);
-    setEditedSlaves(JSON.parse(JSON.stringify(originalSlaves)));
-    setHasChanges(false);
-  };
-
-  const handleSave = async () => {
-    if (!editedTransaction) return;
-
-    try {
-      // 1. Mettre à jour la transaction maître (description, date)
-      const response = await fetch(
-        `${API_URL}/transactions/${editedTransaction.transactionId}`,
-        {
-          method: "PUT",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            description: editedTransaction.description,
-            date: editedTransaction.date,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to update transaction");
-      }
-
-      // 2. Mettre à jour les slaves si elles ont changé
-      if (slavesHaveChanges) {
-        const slavesResponse = await fetch(
-          `${API_URL}/transactions/${editedTransaction.transactionId}/slaves`,
-          {
-            method: "PUT",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              slaves: editedSlaves.map((slave) => ({
-                slaveId: slave.slaveId,
-                type: slave.type,
-                amount: slave.amount,
-                date: slave.date,
-                accountId: slave.accountId,
-              })),
-            }),
-          }
-        );
-
-        if (!slavesResponse.ok) {
-          const errorData = await slavesResponse.json().catch(() => ({}));
-          throw new Error(
-            errorData.detail || "Failed to update transaction slaves"
-          );
-        }
-      }
-
-      // Recharger les transactions pour avoir les données à jour
-      await fetchTransactions();
-
-      setIsModalOpen(false);
-    } catch (error) {
-      setError(
-        `Failed to update transaction: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-    }
   };
 
   const handleClose = () => {
     setIsModalOpen(false);
     setSelectedTransaction(null);
-    setEditedTransaction(null);
+  };
+
+  const handleSaveTransaction = async (
+    transactionId: string,
+    description: string,
+    date: string,
+    slaves: {
+      slaveId: string;
+      type: string;
+      amount: number;
+      date: string;
+      accountId: string;
+    }[]
+  ) => {
+    // Mettre à jour la transaction principale
+    const response = await fetch(`${API_URL}/transactions/${transactionId}`, {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        description,
+        date: new Date(date).toISOString(),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update transaction");
+    }
+
+    // Mettre à jour les slaves
+    const slavesResponse = await fetch(
+      `${API_URL}/transactions/${transactionId}/slaves`,
+      {
+        method: "PUT",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slaves: slaves.map((slave) => ({
+            slaveId: slave.slaveId,
+            type: slave.type,
+            amount: slave.amount,
+            date: slave.date,
+            accountId: slave.accountId,
+          })),
+        }),
+      }
+    );
+
+    if (!slavesResponse.ok) {
+      const errorData = await slavesResponse.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || "Failed to update transaction slaves"
+      );
+    }
+
+    // Recharger les transactions
+    await fetchTransactions();
   };
 
   return (
@@ -928,253 +824,39 @@ export default function Transactions() {
       </main>
 
       {/* Modal */}
-      {isModalOpen && selectedTransaction && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-          onClick={handleClose}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-2xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">
-                Détails de la transaction
-              </h3>
-              <button
-                onClick={handleClose}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={editedTransaction?.description}
-                  onChange={(e) =>
-                    handleTransactionChange("description", e.target.value)
-                  }
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={editedTransaction?.date.split("T")[0]}
-                  onChange={(e) =>
-                    handleTransactionChange("date", e.target.value)
-                  }
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Montant</p>
-                <p className="mt-1">{selectedTransaction.amount}€</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Type</p>
-                <p className="mt-1 capitalize">{selectedTransaction.type}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Compte</p>
-                <p className="mt-1">
-                  {selectedTransaction.masterAccountName ||
-                    "⚠️ Account not retrieved"}
-                </p>
-              </div>
-              {/* Section des transactions associées (slaves) - Éditable */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <p className="text-sm font-medium text-gray-500">
-                    Transactions associées
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleAddSlave}
-                    className="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                  >
-                    + Ajouter
-                  </button>
-                </div>
-
-                {editedSlaves.length === 0 ? (
-                  <p className="text-sm text-gray-400 italic">
-                    Aucune transaction associée
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {editedSlaves.map((slave, index) => (
-                      <div
-                        key={slave.slaveId}
-                        className="bg-gray-50 p-3 rounded-md border border-gray-200"
-                      >
-                        <div className="flex items-start gap-3">
-                          {/* Sélecteur de compte */}
-                          <div className="flex-1">
-                            <label className="block text-xs text-gray-500 mb-1">
-                              Compte
-                            </label>
-                            <select
-                              value={slave.accountId}
-                              onChange={(e) =>
-                                handleSlaveChange(
-                                  index,
-                                  "accountId",
-                                  e.target.value
-                                )
-                              }
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="">Sélectionner un compte</option>
-                              {accounts.map((account) => (
-                                <option
-                                  key={account.accountId}
-                                  value={account.accountId}
-                                >
-                                  {account.name}{" "}
-                                  {!account.is_real && "(virtuel)"}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          {/* Montant */}
-                          <div className="w-24">
-                            <label className="block text-xs text-gray-500 mb-1">
-                              Montant
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={slave.amount}
-                              onChange={(e) =>
-                                handleSlaveChange(
-                                  index,
-                                  "amount",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          {/* Type */}
-                          <div className="w-20">
-                            <label className="block text-xs text-gray-500 mb-1">
-                              Type
-                            </label>
-                            <select
-                              value={slave.type}
-                              onChange={(e) =>
-                                handleSlaveChange(index, "type", e.target.value)
-                              }
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="credit">Crédit</option>
-                              <option value="debit">Débit</option>
-                            </select>
-                          </div>
-
-                          {/* Bouton supprimer */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSlave(index)}
-                            className="mt-5 p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                            title="Supprimer"
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Total des slaves */}
-                    <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-                      <span className="text-sm text-gray-500">
-                        Total des slaves:
-                      </span>
-                      <span
-                        className={`text-sm font-semibold ${
-                          editedSlaves.reduce((sum, s) => sum + s.amount, 0) ===
-                          selectedTransaction.amount
-                            ? "text-green-600"
-                            : "text-orange-500"
-                        }`}
-                      >
-                        {editedSlaves
-                          .reduce((sum, s) => sum + s.amount, 0)
-                          .toFixed(2)}
-                        €
-                        {editedSlaves.reduce((sum, s) => sum + s.amount, 0) !==
-                          selectedTransaction.amount && (
-                          <span className="ml-2 text-xs">
-                            (attendu: {selectedTransaction.amount}€)
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                {hasAnyChanges && (
-                  <button
-                    onClick={handleCancel}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors"
-                  >
-                    Annuler
-                  </button>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={hasInvalidSlaves || !hasAnyChanges}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
-                    hasInvalidSlaves || !hasAnyChanges
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  }`}
-                >
-                  Modifier
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <TransactionEditModal
+        isOpen={isModalOpen}
+        transaction={
+          selectedTransaction
+            ? {
+                transactionId: selectedTransaction.transactionId,
+                description: selectedTransaction.description,
+                date: selectedTransaction.date,
+                amount: selectedTransaction.amount,
+                type: selectedTransaction.type,
+                accountId: selectedTransaction.accountId,
+                masterAccountName: selectedTransaction.masterAccountName,
+                TransactionsSlaves: selectedTransaction.TransactionsSlaves.map(
+                  (s) => ({
+                    slaveId: s.slaveId,
+                    type: s.type,
+                    amount: s.amount,
+                    date: s.date,
+                    accountId: s.accountId,
+                    masterId: s.masterId,
+                    slaveAccountName:
+                      s.slaveAccountName || s.Accounts?.name || "",
+                    slaveAccountIsReal: false,
+                  })
+                ),
+              }
+            : null
+        }
+        realAccounts={accounts.filter((a) => a.is_real)}
+        allAccounts={accounts}
+        onClose={handleClose}
+        onSave={handleSaveTransaction}
+      />
     </div>
   );
 }
