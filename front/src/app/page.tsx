@@ -1328,8 +1328,7 @@ export default function Home() {
                     }
                   : null
               }
-              realAccounts={accounts}
-              allAccounts={allAccounts}
+              accounts={allAccounts}
               onClose={handleCloseEditModal}
               onSave={handleSaveTransaction}
             />

@@ -852,8 +852,7 @@ export default function Transactions() {
               }
             : null
         }
-        realAccounts={accounts.filter((a) => a.is_real)}
-        allAccounts={accounts}
+        accounts={accounts}
         onClose={handleClose}
         onSave={handleSaveTransaction}
       />
