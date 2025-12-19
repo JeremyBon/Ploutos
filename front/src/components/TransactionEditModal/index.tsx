@@ -12,6 +12,7 @@ import {
   validateSlaves,
   findAccountById,
 } from "./utils";
+import { detectSmoothingGroups } from "./smoothingDetection";
 import SlaveTransactionRow from "./SlaveTransactionRow";
 import SmoothingModal from "./SmoothingModal";
 
@@ -239,8 +240,14 @@ export default function TransactionEditModal({
   // Validation error
   const validationError: ValidationError | null = useMemo(() => {
     if (!transaction) return null;
-    return validateSlaves(editSlaves, transaction.amount, transaction.type);
-  }, [editSlaves, transaction]);
+    return validateSlaves(editSlaves, originalEditSlaves);
+  }, [editSlaves, originalEditSlaves]);
+
+  // Detect smoothing groups among slaves
+  const smoothingInfoMap = useMemo(
+    () => detectSmoothingGroups(editSlaves),
+    [editSlaves]
+  );
 
   // Check if save is possible
   const canSave = useMemo(() => {
@@ -456,7 +463,7 @@ export default function TransactionEditModal({
                   </p>
                   <p className="text-sm text-blue-700">
                     <span className="font-medium">Montant total:</span>{" "}
-                    {editSlaves
+                    {originalEditSlaves
                       .reduce((sum, slave) => sum + slave.amount, 0)
                       .toLocaleString("fr-FR", {
                         style: "currency",
@@ -489,14 +496,41 @@ export default function TransactionEditModal({
                       Détail des transactions associées
                     </p>
                   </div>
-                  <button
-                    onClick={handleAddSlave}
-                    className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-                    disabled={isSaving}
-                    aria-label="Ajouter une nouvelle transaction slave"
-                  >
-                    + Ajouter
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        // Find first credit slave that is not part of a smoothing group
+                        const firstCreditIndex = editSlaves.findIndex(
+                          (slave) =>
+                            slave.type.toLowerCase() === "credit" &&
+                            !smoothingInfoMap.has(slave.slaveId)
+                        );
+                        if (firstCreditIndex !== -1) {
+                          handleSmooth(firstCreditIndex);
+                        }
+                      }}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                      disabled={
+                        isSaving ||
+                        !editSlaves.some(
+                          (slave) =>
+                            slave.type.toLowerCase() === "credit" &&
+                            !smoothingInfoMap.has(slave.slaveId)
+                        )
+                      }
+                      aria-label="Lisser une transaction slave"
+                    >
+                      Lisser
+                    </button>
+                    <button
+                      onClick={handleAddSlave}
+                      className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                      disabled={isSaving}
+                      aria-label="Ajouter une nouvelle transaction slave"
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -515,7 +549,7 @@ export default function TransactionEditModal({
                     onRemove={handleSlaveRemove}
                     onCategoryFilterChange={handleCategoryFilterChange}
                     onAccountTypeChange={handleAccountTypeChange}
-                    onSmooth={handleSmooth}
+                    smoothingInfo={smoothingInfoMap.get(slave.slaveId)}
                   />
                 ))}
 

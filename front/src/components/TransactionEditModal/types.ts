@@ -58,11 +58,17 @@ export interface SlaveTransactionRowProps {
   onRemove: (slaveId: string) => void;
   onCategoryFilterChange: (slaveId: string, category: string) => void;
   onAccountTypeChange: (slaveId: string, type: "virtual" | "real") => void;
-  onSmooth: (index: number) => void;
+  smoothingInfo?: SmoothingInfo | null;
 }
 
 export interface ValidationError {
   type: "balance" | "invalid_slave" | "missing_account";
   message: string;
   slaveId?: string;
+}
+
+export interface SmoothingInfo {
+  position: number;
+  totalMonths: number;
+  totalAmount: number;
 }

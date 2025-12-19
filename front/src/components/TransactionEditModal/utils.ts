@@ -34,8 +34,7 @@ export const getUniqueCategories = (accounts: Account[]): string[] => {
 
 export const validateSlaves = (
   slaves: TransactionSlave[],
-  masterAmount: number,
-  masterType: string
+  originalSlaves: TransactionSlave[]
 ): ValidationError | null => {
   // Check for slaves with invalid amounts
   const invalidAmountSlave = slaves.find((slave) => Number(slave.amount) <= 0);
@@ -57,17 +56,17 @@ export const validateSlaves = (
     };
   }
 
-  // Check balance
-  const masterBalance = calculateMasterBalance(masterAmount, masterType);
-  const slavesBalance = getSlavesBalance(slaves);
-  const delta = Math.abs(masterBalance - slavesBalance);
+  // Check balance: compare current slaves balance with original slaves balance
+  const originalBalance = getSlavesBalance(originalSlaves);
+  const currentBalance = getSlavesBalance(slaves);
+  const delta = Math.abs(originalBalance - currentBalance);
 
   if (delta >= 0.01) {
-    const expectedBalance = masterBalance >= 0 ? masterBalance : -masterBalance;
-    const currentBalance = slavesBalance >= 0 ? slavesBalance : -slavesBalance;
+    const expectedAmount = Math.abs(originalBalance);
+    const currentAmount = Math.abs(currentBalance);
     return {
       type: "balance",
-      message: `Balance incorrecte: ${currentBalance.toFixed(2)}€ / ${expectedBalance.toFixed(2)}€ attendu (écart: ${delta.toFixed(2)}€)`,
+      message: `Balance incorrecte: ${currentAmount.toFixed(2)}€ / ${expectedAmount.toFixed(2)}€ attendu (écart: ${delta.toFixed(2)}€)`,
     };
   }
 

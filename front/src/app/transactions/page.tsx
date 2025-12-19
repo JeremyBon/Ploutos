@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
 import TransactionEditModal from "@/components/TransactionEditModal";
+import { detectSmoothingGroups } from "@/components/TransactionEditModal/smoothingDetection";
+import { formatAmount } from "@/components/TransactionEditModal/smoothingUtils";
 import { API_URL } from "@/config/api";
 
 // Icons components
@@ -314,7 +316,24 @@ export default function Transactions() {
       }
 
       const data = await response.json();
-      console.log("Transactions data:", data);
+      console.log("=== TRANSACTIONS DEBUG ===");
+      console.log("Filter params:", {
+        dateFilter,
+        selectedMonth,
+        date_from: params.get("date_from"),
+        date_to: params.get("date_to"),
+      });
+      console.log("Transactions count:", data.length);
+      data.forEach((t: Transaction) => {
+        console.log(`Transaction: ${t.transactionId}`, {
+          date: t.date,
+          amount: t.amount,
+          description: t.description?.substring(0, 30),
+          slavesCount: t.TransactionsSlaves?.length,
+          slavesDates: t.TransactionsSlaves?.map((s) => s.date),
+        });
+      });
+      console.log("=== END DEBUG ===");
       setTransactions(data);
       setError(null);
     } catch (error) {
@@ -789,15 +808,48 @@ export default function Transactions() {
                         {transaction.TransactionsSlaves &&
                           transaction.TransactionsSlaves.length > 0 && (
                             <div className="flex flex-wrap gap-1">
-                              {transaction.TransactionsSlaves.map((slave) => (
-                                <div
-                                  key={slave.slaveId}
-                                  className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap"
-                                >
-                                  {slave.slaveAccountName ||
-                                    "⚠️ Compte non récupéré"}
-                                </div>
-                              ))}
+                              {(() => {
+                                const smoothingMap = detectSmoothingGroups(
+                                  transaction.TransactionsSlaves.map((s) => ({
+                                    slaveId: s.slaveId,
+                                    type: s.type,
+                                    amount: s.amount,
+                                    date: s.date,
+                                    accountId: s.accountId,
+                                    masterId: s.masterId,
+                                    slaveAccountName:
+                                      s.slaveAccountName ||
+                                      s.Accounts?.name ||
+                                      "",
+                                    slaveAccountIsReal: false,
+                                  }))
+                                );
+                                return transaction.TransactionsSlaves.map(
+                                  (slave) => {
+                                    const smoothingInfo = smoothingMap.get(
+                                      slave.slaveId
+                                    );
+                                    return (
+                                      <div
+                                        key={slave.slaveId}
+                                        className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap flex items-center gap-1"
+                                      >
+                                        {slave.slaveAccountName ||
+                                          "⚠️ Compte non récupéré"}
+                                        {smoothingInfo && (
+                                          <span
+                                            className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
+                                            title={`Fait partie d'un lissage de ${formatAmount(smoothingInfo.totalAmount)} sur ${smoothingInfo.totalMonths} mois`}
+                                          >
+                                            📊 {smoothingInfo.position}/
+                                            {smoothingInfo.totalMonths}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                );
+                              })()}
                             </div>
                           )}
                       </div>

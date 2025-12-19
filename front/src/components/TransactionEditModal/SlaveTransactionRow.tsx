@@ -7,6 +7,7 @@ import {
   getUniqueCategories,
   filterAccountsByCategory,
 } from "./utils";
+import { formatAmount } from "./smoothingUtils";
 
 export default function SlaveTransactionRow({
   slave,
@@ -20,7 +21,7 @@ export default function SlaveTransactionRow({
   onRemove,
   onCategoryFilterChange,
   onAccountTypeChange,
-  onSmooth,
+  smoothingInfo,
 }: SlaveTransactionRowProps) {
   const isCredit = slave.type.toLowerCase() === "credit";
 
@@ -122,18 +123,16 @@ export default function SlaveTransactionRow({
               ({isCredit ? "Crédit" : "Débit"})
             </span>
           </h5>
+          {smoothingInfo && (
+            <span
+              className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium"
+              title={`Fait partie d'un lissage de ${formatAmount(smoothingInfo.totalAmount)} sur ${smoothingInfo.totalMonths} mois`}
+            >
+              📊 {smoothingInfo.position}/{smoothingInfo.totalMonths}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          {isCredit && (
-            <button
-              onClick={() => onSmooth(index)}
-              className="text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded text-sm"
-              title="Lisser cette dépense"
-              aria-label={`Lisser la transaction slave ${index + 1}`}
-            >
-              📊 Lisser
-            </button>
-          )}
           <button
             onClick={() => onRemove(slaveId)}
             className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"

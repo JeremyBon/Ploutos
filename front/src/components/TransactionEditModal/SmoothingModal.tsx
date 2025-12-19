@@ -53,8 +53,8 @@ export default function SmoothingModal({
     if (!validation.isValid || preview.length === 0) return;
 
     // Convert preview to TransactionSlave array
-    const smoothedSlaves: TransactionSlave[] = preview.map((item, index) => ({
-      slaveId: `smooth-${Date.now()}-${index}`,
+    const smoothedSlaves: TransactionSlave[] = preview.map((item) => ({
+      slaveId: crypto.randomUUID(),
       type: slave.type,
       amount: item.amount,
       date: item.date,

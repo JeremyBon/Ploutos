@@ -49,6 +49,26 @@ interface VirtualAccount {
   active: boolean;
 }
 
+interface DeferredDetail {
+  slave_id: string;
+  master_id: string;
+  amount: number;
+  master_date: string;
+  slave_date: string;
+  description: string;
+  account_name: string;
+}
+
+interface DeferredBalance {
+  total: number;
+  details: DeferredDetail[];
+}
+
+interface DeferredAccounts {
+  prepaid_expenses: DeferredBalance;
+  deferred_revenue: DeferredBalance;
+}
+
 interface TransactionSlave {
   slaveId: string;
   type: string;
@@ -113,6 +133,11 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [allAccounts, setAllAccounts] = useState<VirtualAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [deferredAccounts, setDeferredAccounts] =
+    useState<DeferredAccounts | null>(null);
+  const [expandedTransit, setExpandedTransit] = useState<"cca" | "pca" | null>(
+    null
+  );
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [selectedYear, setSelectedYear] = useState<number>(
@@ -159,6 +184,19 @@ export default function Home() {
     }
   };
 
+  const fetchDeferredAccounts = async () => {
+    try {
+      const response = await fetch(`${API_URL}/accounts/deferred`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch deferred accounts");
+      }
+      const data = await response.json();
+      setDeferredAccounts(data);
+    } catch (error) {
+      console.error("Error fetching deferred accounts:", error);
+    }
+  };
+
   const fetchTransactions = async () => {
     try {
       setLoadingTransactions(true);
@@ -187,6 +225,7 @@ export default function Home() {
   useEffect(() => {
     fetchAccounts();
     fetchAllAccounts();
+    fetchDeferredAccounts();
   }, []);
 
   useEffect(() => {
@@ -856,6 +895,139 @@ export default function Home() {
                 </>
               )}
             </div>
+
+            {/* En Transit Widget - CCA/PCA */}
+            {deferredAccounts &&
+              (deferredAccounts.prepaid_expenses.total > 0 ||
+                deferredAccounts.deferred_revenue.total > 0) && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    En transit
+                  </h3>
+
+                  {/* CCA - Charges Constatées d'Avance */}
+                  {deferredAccounts.prepaid_expenses.total > 0 && (
+                    <div className="mb-3">
+                      <div
+                        className="flex justify-between items-center p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors"
+                        onClick={() =>
+                          setExpandedTransit(
+                            expandedTransit === "cca" ? null : "cca"
+                          )
+                        }
+                      >
+                        <div>
+                          <p className="font-medium text-orange-800">CCA</p>
+                          <p className="text-xs text-orange-600">
+                            Charges constatées d&apos;avance
+                          </p>
+                        </div>
+                        <p className="font-semibold text-orange-600">
+                          {deferredAccounts.prepaid_expenses.total.toLocaleString(
+                            "fr-FR",
+                            {
+                              style: "currency",
+                              currency: "EUR",
+                            }
+                          )}
+                        </p>
+                      </div>
+
+                      {expandedTransit === "cca" && (
+                        <div className="mt-2 ml-2 space-y-1">
+                          {deferredAccounts.prepaid_expenses.details.map(
+                            (detail) => (
+                              <div
+                                key={detail.slave_id}
+                                className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-700 truncate">
+                                    {detail.description}
+                                  </p>
+                                  <p className="text-gray-500">
+                                    {detail.account_name} -{" "}
+                                    {new Date(
+                                      detail.slave_date
+                                    ).toLocaleDateString("fr-FR")}
+                                  </p>
+                                </div>
+                                <p className="font-semibold text-orange-600 ml-2">
+                                  {detail.amount.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PCA - Produits Constatés d'Avance */}
+                  {deferredAccounts.deferred_revenue.total > 0 && (
+                    <div>
+                      <div
+                        className="flex justify-between items-center p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                        onClick={() =>
+                          setExpandedTransit(
+                            expandedTransit === "pca" ? null : "pca"
+                          )
+                        }
+                      >
+                        <div>
+                          <p className="font-medium text-blue-800">PCA</p>
+                          <p className="text-xs text-blue-600">
+                            Produits constatés d&apos;avance
+                          </p>
+                        </div>
+                        <p className="font-semibold text-blue-600">
+                          {deferredAccounts.deferred_revenue.total.toLocaleString(
+                            "fr-FR",
+                            {
+                              style: "currency",
+                              currency: "EUR",
+                            }
+                          )}
+                        </p>
+                      </div>
+
+                      {expandedTransit === "pca" && (
+                        <div className="mt-2 ml-2 space-y-1">
+                          {deferredAccounts.deferred_revenue.details.map(
+                            (detail) => (
+                              <div
+                                key={detail.slave_id}
+                                className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-700 truncate">
+                                    {detail.description}
+                                  </p>
+                                  <p className="text-gray-500">
+                                    {detail.account_name} -{" "}
+                                    {new Date(
+                                      detail.slave_date
+                                    ).toLocaleDateString("fr-FR")}
+                                  </p>
+                                </div>
+                                <p className="font-semibold text-blue-600 ml-2">
+                                  {detail.amount.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
 
           {/* Main Content Area */}
