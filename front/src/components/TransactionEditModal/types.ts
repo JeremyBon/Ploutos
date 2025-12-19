@@ -58,6 +58,7 @@ export interface SlaveTransactionRowProps {
   onRemove: (slaveId: string) => void;
   onCategoryFilterChange: (slaveId: string, category: string) => void;
   onAccountTypeChange: (slaveId: string, type: "virtual" | "real") => void;
+  onSmooth: (index: number) => void;
 }
 
 export interface ValidationError {

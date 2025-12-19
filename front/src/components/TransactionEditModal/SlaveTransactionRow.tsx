@@ -20,6 +20,7 @@ export default function SlaveTransactionRow({
   onRemove,
   onCategoryFilterChange,
   onAccountTypeChange,
+  onSmooth,
 }: SlaveTransactionRowProps) {
   const isCredit = slave.type.toLowerCase() === "credit";
 
@@ -122,26 +123,38 @@ export default function SlaveTransactionRow({
             </span>
           </h5>
         </div>
-        <button
-          onClick={() => onRemove(slaveId)}
-          className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
-          title="Supprimer cette transaction"
-          aria-label={`Supprimer la transaction slave ${index + 1}`}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
+        <div className="flex items-center gap-1">
+          {isCredit && (
+            <button
+              onClick={() => onSmooth(index)}
+              className="text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded text-sm"
+              title="Lisser cette dépense"
+              aria-label={`Lisser la transaction slave ${index + 1}`}
+            >
+              📊 Lisser
+            </button>
+          )}
+          <button
+            onClick={() => onRemove(slaveId)}
+            className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
+            title="Supprimer cette transaction"
+            aria-label={`Supprimer la transaction slave ${index + 1}`}
           >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -314,17 +327,21 @@ export default function SlaveTransactionRow({
           )}
         </div>
 
-        {/* Date (read-only) */}
+        {/* Date input */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
+          <label
+            htmlFor={`date-${slaveId}`}
+            className="block text-xs font-medium text-gray-600 mb-1"
+          >
             Date
           </label>
-          <div
-            className="w-full px-2 py-1.5 text-sm bg-gray-200 border-2 border-gray-300 rounded-md text-gray-600 font-medium"
-            title="La date est héritée de la transaction principale"
-          >
-            {new Date(slave.date).toLocaleDateString("fr-FR")}
-          </div>
+          <input
+            id={`date-${slaveId}`}
+            type="date"
+            value={slave.date.split("T")[0]}
+            onChange={(e) => onUpdate(slaveId, { date: e.target.value })}
+            className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
+          />
         </div>
       </div>
     </div>

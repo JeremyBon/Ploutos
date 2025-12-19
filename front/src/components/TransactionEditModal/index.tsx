@@ -13,6 +13,7 @@ import {
   findAccountById,
 } from "./utils";
 import SlaveTransactionRow from "./SlaveTransactionRow";
+import SmoothingModal from "./SmoothingModal";
 
 export default function TransactionEditModal({
   isOpen,
@@ -42,6 +43,9 @@ export default function TransactionEditModal({
   const [originalEditSlaves, setOriginalEditSlaves] = useState<
     TransactionSlave[]
   >([]);
+  const [smoothingSlaveIndex, setSmoothingSlaveIndex] = useState<number | null>(
+    null
+  );
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -168,6 +172,50 @@ export default function TransactionEditModal({
     type: "virtual" | "real"
   ) => {
     setSlaveAccountTypes((prev) => ({ ...prev, [slaveId]: type }));
+  };
+
+  // Handle smooth button click - opens smoothing modal
+  const handleSmooth = (index: number) => {
+    setSmoothingSlaveIndex(index);
+  };
+
+  // Handle smoothing modal close
+  const handleSmoothingClose = () => {
+    setSmoothingSlaveIndex(null);
+  };
+
+  // Handle smoothing confirmation - replace original slave with smoothed slaves
+  const handleSmoothingConfirm = (smoothedSlaves: TransactionSlave[]) => {
+    if (smoothingSlaveIndex === null) return;
+
+    const originalSlave = editSlaves[smoothingSlaveIndex];
+
+    setEditSlaves((prevSlaves) => {
+      const newSlaves = [...prevSlaves];
+      // Remove the original slave at the index and insert smoothed slaves
+      newSlaves.splice(smoothingSlaveIndex, 1, ...smoothedSlaves);
+      return newSlaves;
+    });
+
+    // Initialize account types and category filters for new slaves
+    smoothedSlaves.forEach((slave) => {
+      setSlaveAccountTypes((prev) => ({
+        ...prev,
+        [slave.slaveId]: slave.slaveAccountIsReal ? "real" : "virtual",
+      }));
+      // Category filter will use the original slave's category if virtual
+      if (!slave.slaveAccountIsReal && originalSlave) {
+        const originalCategory = slaveCategoryFilters[originalSlave.slaveId];
+        if (originalCategory) {
+          setSlaveCategoryFilters((prev) => ({
+            ...prev,
+            [slave.slaveId]: originalCategory,
+          }));
+        }
+      }
+    });
+
+    setSmoothingSlaveIndex(null);
   };
 
   // Check if form has been modified
@@ -467,6 +515,7 @@ export default function TransactionEditModal({
                     onRemove={handleSlaveRemove}
                     onCategoryFilterChange={handleCategoryFilterChange}
                     onAccountTypeChange={handleAccountTypeChange}
+                    onSmooth={handleSmooth}
                   />
                 ))}
 
@@ -582,6 +631,16 @@ export default function TransactionEditModal({
           </div>
         </div>
       </div>
+
+      {/* Smoothing Modal */}
+      {smoothingSlaveIndex !== null && editSlaves[smoothingSlaveIndex] && (
+        <SmoothingModal
+          isOpen={smoothingSlaveIndex !== null}
+          slave={editSlaves[smoothingSlaveIndex]}
+          onClose={handleSmoothingClose}
+          onConfirm={handleSmoothingConfirm}
+        />
+      )}
     </div>
   );
 }

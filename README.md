@@ -51,9 +51,19 @@ http://localhost:8080/docs
 
 ## Tests
 
+### Backend
 ```bash
 cd back && poetry run pytest
 ```
+
+### Frontend
+```bash
+cd front && npm test          # Mode watch
+cd front && npm run test:run  # Execution unique
+cd front && npm run test:coverage  # Avec couverture
+```
+
+Le frontend utilise Vitest pour les tests unitaires. Les fichiers de test sont places a cote des fichiers source avec l'extension `.test.ts` ou `.test.tsx`.
 
 ## Database Backup & Restore
 
