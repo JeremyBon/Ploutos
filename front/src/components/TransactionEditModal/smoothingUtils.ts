@@ -76,7 +76,9 @@ export function calculateSmoothedTransactions(
   const baseAmount = Math.floor((amount / months) * 100) / 100;
   const results: SmoothedTransaction[] = [];
 
-  const originalDate = new Date(startDate + "T12:00:00");
+  // Normalize startDate: extract just the date part (YYYY-MM-DD)
+  const datePart = startDate.split("T")[0];
+  const originalDate = new Date(datePart + "T12:00:00");
 
   for (let i = 0; i < months; i++) {
     let transactionDate: Date;
@@ -125,5 +127,12 @@ export function formatAmount(amount: number): string {
  * Formats date for display in French locale (DD/MM/YYYY)
  */
 export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("fr-FR");
+  if (!dateString) return "";
+
+  // Extract just the date part if it contains time
+  const datePart = dateString.split("T")[0];
+  const date = new Date(datePart + "T12:00:00");
+
+  if (isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("fr-FR");
 }
