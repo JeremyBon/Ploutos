@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import TransactionSlavesPreviewModal from "@/components/TransactionSlavesPreviewModal";
 import { API_URL } from "@/config/api";
 
 interface Account {
@@ -73,11 +74,17 @@ interface MatchingResult {
   }>;
 }
 
+interface PreviewSlave {
+  account_name: string;
+  amount: number;
+}
+
 interface PreviewMatch {
   transaction_id: string;
   description: string;
   amount: number;
   date: string;
+  slaves: PreviewSlave[];
 }
 
 interface MatchingPreviewResult {
@@ -133,6 +140,8 @@ export default function Categorization() {
   const [previewResult, setPreviewResult] =
     useState<MatchingPreviewResult | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [selectedPreviewMatch, setSelectedPreviewMatch] =
+    useState<PreviewMatch | null>(null);
 
   // Form state
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -1660,8 +1669,29 @@ export default function Categorization() {
                                 )}
                               </div>
                             </div>
-                            <div className="text-lg font-bold text-gray-900 ml-4">
-                              {match.amount.toFixed(2)}€
+                            <div className="flex items-center gap-3">
+                              <div className="text-lg font-bold text-gray-900">
+                                {match.amount.toFixed(2)}€
+                              </div>
+                              <button
+                                onClick={() => setSelectedPreviewMatch(match)}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                                title="Voir les transactions associees"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-5 w-5"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1682,6 +1712,13 @@ export default function Categorization() {
             </div>
           </div>
         )}
+
+        {/* Transaction Slaves Preview Modal */}
+        <TransactionSlavesPreviewModal
+          isOpen={!!selectedPreviewMatch}
+          transaction={selectedPreviewMatch}
+          onClose={() => setSelectedPreviewMatch(null)}
+        />
 
         {/* Rules List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">

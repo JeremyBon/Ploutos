@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from ploutos.api.deps import SessionDep
 from ploutos.db.models import MatchType, TransactionWithSlaves
+from ploutos.processors.base import get_processor
 from ploutos.services.matching_service import (
     apply_processor_to_transaction,
     count_uncategorized_transactions,
@@ -46,6 +47,13 @@ class MatchingStats(BaseModel):
     rules: List[dict] = Field(default_factory=list)
 
 
+class PreviewSlave(BaseModel):
+    """Details of a projected slave transaction (what will be created by the rule)."""
+
+    account_name: str
+    amount: float
+
+
 class PreviewMatch(BaseModel):
     """Details of a single transaction match in preview mode."""
 
@@ -53,6 +61,7 @@ class PreviewMatch(BaseModel):
     description: str
     amount: float
     date: str
+    slaves: List[PreviewSlave] = Field(default_factory=list)
 
 
 class MatchingPreviewResult(BaseModel):
@@ -262,15 +271,61 @@ async def preview_rule_matching(rule_id: str, db: SessionDep):
         # Find matching transactions using existing logic
         matched_txs = await find_matching_transactions(db, rule)
 
+        # Get processor to calculate projected slaves
+        processor_type = rule.get("processor_type", "simple_split")
+        processor_config = rule.get("processor_config", {})
+
+        # Get processor class
+        processor_class = get_processor(processor_type)
+        processor = processor_class() if processor_class else None
+
         # Convert to preview matches
         matches = []
         for tx_dict in matched_txs:
+            projected_slaves = []
+
+            if processor:
+                try:
+                    # Convert dict to TransactionWithSlaves for the processor
+                    tx = TransactionWithSlaves(**tx_dict)
+
+                    # Validate config and run processor
+                    validated_config = processor.validate_config(processor_config)
+                    result = processor.process(tx, validated_config)
+
+                    if result["success"]:
+                        # Get account names for the generated slaves
+                        for slave in result["slaves"]:
+                            account_response = (
+                                db.table("Accounts")
+                                .select("name")
+                                .eq("accountId", str(slave.accountId))
+                                .execute()
+                            )
+                            account_name = (
+                                account_response.data[0]["name"]
+                                if account_response.data
+                                else "Compte inconnu"
+                            )
+                            projected_slaves.append(
+                                PreviewSlave(
+                                    account_name=account_name,
+                                    amount=slave.amount,
+                                )
+                            )
+                except Exception as e:
+                    logger.warning(
+                        f"Error processing preview for tx {tx_dict.get('transactionId')}: {e}"
+                    )
+                    # Continue with empty slaves on error
+
             matches.append(
                 PreviewMatch(
                     transaction_id=str(tx_dict["transactionId"]),
                     description=tx_dict["description"],
                     amount=tx_dict["amount"],
                     date=tx_dict["date"],
+                    slaves=projected_slaves,
                 )
             )
 
