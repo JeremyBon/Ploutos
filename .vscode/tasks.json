@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "envChoice",
+      "type": "pickString",
+      "description": "Choose environment",
+      "options": ["Dev (local)", "Prod (cloud)"],
+      "default": "Dev (local)"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Supabase Start",
+      "type": "shell",
+      "command": "supabase start",
+      "options": { "cwd": "${workspaceFolder}/supabase" },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend (local)",
+      "type": "shell",
+      "command": "source .env.local 2>/dev/null || source .env && poetry run uvicorn ploutos.api.main:app --reload --port ${API_PORT:-8080}",
+      "options": { "cwd": "${workspaceFolder}/back" },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Backend (prod)",
+      "type": "shell",
+      "command": "source .env && ENV=prod poetry run uvicorn ploutos.api.main:app --reload --port ${API_PORT:-8080}",
+      "options": { "cwd": "${workspaceFolder}/back" },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/front" },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Dev Start",
+      "detail": "Start Supabase local + Backend + Frontend (3 terminals)",
+      "dependsOn": ["Supabase Start", "Backend (local)", "Frontend"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Prod Start",
+      "detail": "Start Backend (prod) + Frontend (2 terminals)",
+      "dependsOn": ["Backend (prod)", "Frontend"],
+      "dependsOrder": "parallel",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop All",
+      "type": "shell",
+      "command": "cd ${workspaceFolder}/supabase && supabase stop 2>/dev/null; lsof -ti:3000 | xargs kill -9 2>/dev/null; lsof -ti:8080 | xargs kill -9 2>/dev/null; echo 'All stopped!'",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    }
+  ]
+}
