@@ -130,8 +130,9 @@ Le frontend utilise Vitest pour les tests unitaires. Les fichiers de test sont p
 Dans back:
 ```bash
 pg_dump \
-  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  "postgresql://postgres:[PASSWORD]@db.cdaunrvoljkqoimtrtpc.supabase.co:5432/postgres" \
   -Fc \
+  -n public \
   -f backup_$(date +%Y%m%d).dump
 ```
 
@@ -140,9 +141,10 @@ pg_dump \
 Dans back:
 ```bash
 pg_restore \
-  -d "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -d "postgresql://postgres:[PASSWORD]@db.cdaunrvoljkqoimtrtpc.supabase.co:5432/postgres" \
   --clean \
   --if-exists \
+  -n public \
   backup.dump
 ```
 
