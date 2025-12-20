@@ -4,6 +4,16 @@ import { useState, useEffect, useMemo } from "react";
 import Navigation from "@/components/Navigation";
 import { API_URL } from "@/config/api";
 
+/**
+ * Extrait l'année et le mois d'une chaîne de date (YYYY-MM-DD ou ISO)
+ * sans passer par Date pour éviter les problèmes de timezone
+ */
+function extractYearMonth(dateStr: string): { year: number; month: number } {
+  const datePart = dateStr.split(/[T ]/)[0];
+  const [year, month] = datePart.split("-").map(Number);
+  return { year, month };
+}
+
 interface Transaction {
   transactionId: string;
   description: string;
@@ -120,13 +130,12 @@ export default function Transfers() {
 
     // Filtrage par mois si activé
     if (selectedMonth !== "all") {
-      const [year, month] = selectedMonth.split("-");
+      const [yearStr, monthStr] = selectedMonth.split("-");
+      const filterYear = parseInt(yearStr);
+      const filterMonth = parseInt(monthStr);
       result = result.filter((t) => {
-        const date = new Date(t.date);
-        return (
-          date.getFullYear() === parseInt(year) &&
-          date.getMonth() + 1 === parseInt(month)
-        );
+        const { year, month } = extractYearMonth(t.date);
+        return year === filterYear && month === filterMonth;
       });
     }
 
@@ -140,8 +149,8 @@ export default function Transfers() {
   const transfersByMonth = useMemo(() => {
     const groups: { [key: string]: Transfer[] } = {};
     filteredAndSortedTransfers.forEach((t) => {
-      const date = new Date(t.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const { year, month } = extractYearMonth(t.date);
+      const monthKey = `${year}-${String(month).padStart(2, "0")}`;
       if (!groups[monthKey]) {
         groups[monthKey] = [];
       }

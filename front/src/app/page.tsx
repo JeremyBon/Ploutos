@@ -30,6 +30,17 @@ import Navigation from "@/components/Navigation";
 import TransactionEditModal from "@/components/TransactionEditModal";
 import { API_URL } from "@/config/api";
 
+/**
+ * Extrait l'année et le mois d'une chaîne de date (YYYY-MM-DD ou ISO)
+ * sans passer par Date pour éviter les problèmes de timezone
+ */
+function extractYearMonth(dateStr: string): { year: number; month: number } {
+  // Extraire la partie date (avant le T ou l'espace)
+  const datePart = dateStr.split(/[T ]/)[0];
+  const [year, month] = datePart.split("-").map(Number);
+  return { year, month };
+}
+
 interface Account {
   account_id: string;
   name: string;
@@ -242,9 +253,9 @@ export default function Home() {
       // Traiter les transactions slaves (détail des comptes)
       transaction.TransactionsSlaves.forEach((slave) => {
         // Filtrer uniquement les transactions du mois sélectionné
-        const slaveDate = new Date(slave.date);
-        const slaveYear = slaveDate.getFullYear();
-        const slaveMonth = slaveDate.getMonth() + 1;
+        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+          slave.date
+        );
         if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
         // Filtrer seulement les comptes virtuels (is_real = false)
         if (slave.slaveAccountIsReal === false) {
@@ -393,9 +404,9 @@ export default function Home() {
     transactions.forEach((transaction) => {
       transaction.TransactionsSlaves.forEach((slave) => {
         // Filtrer uniquement les transactions du mois sélectionné
-        const slaveDate = new Date(slave.date);
-        const slaveYear = slaveDate.getUTCFullYear();
-        const slaveMonth = slaveDate.getUTCMonth() + 1;
+        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+          slave.date
+        );
         if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
 
         // Filtrer seulement les comptes virtuels
@@ -577,9 +588,7 @@ export default function Home() {
       t.TransactionsSlaves.forEach((slave) => {
         // On ne veut que les comptes virtuels
         if (slave.slaveAccountIsReal === false) {
-          const sd = new Date(slave.date);
-          const sy = sd.getFullYear();
-          const sm = sd.getMonth() + 1;
+          const { year: sy, month: sm } = extractYearMonth(slave.date);
           const idx = months.findIndex((m) => m.year === sy && m.month === sm);
           if (idx === -1) return;
           const isRevenue = slave.type.toLowerCase() === "debit";
@@ -630,9 +639,7 @@ export default function Home() {
         (acc) => acc.account_id === t.accountId
       );
       if (masterAccount && masterAccount.is_real) {
-        const td = new Date(t.date);
-        const ty = td.getFullYear();
-        const tm = td.getMonth() + 1;
+        const { year: ty, month: tm } = extractYearMonth(t.date);
         const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
           const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
           return d.getFullYear() === ty && d.getMonth() + 1 === tm;
@@ -648,9 +655,7 @@ export default function Home() {
       // 2. Traiter les slaves sur des comptes réels
       t.TransactionsSlaves.forEach((slave) => {
         if (slave.slaveAccountIsReal === true) {
-          const sd = new Date(slave.date);
-          const sy = sd.getFullYear();
-          const sm = sd.getMonth() + 1;
+          const { year: sy, month: sm } = extractYearMonth(slave.date);
           const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
             // match by comparing year/month from labels: rebuild month objects
             const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
