@@ -27,6 +27,8 @@ interface ProcessorConfig {
   start_date?: string;
   capital_account_id?: string;
   interest_account_id?: string;
+  insurance_amount?: number;
+  insurance_account_id?: string;
   [key: string]: unknown;
 }
 
@@ -458,6 +460,11 @@ export default function Categorization() {
           <div>
             <span className="font-semibold">Intérêts:</span>{" "}
             {getAccountName(config.interest_account_id)}
+          </div>
+          <div>
+            <span className="font-semibold">Assurance:</span>{" "}
+            {getAccountName(config.insurance_account_id)} (
+            {config.insurance_amount}€/mois)
           </div>
           <div className="text-gray-500 mt-1">
             {config.loan_amount}€ sur {config.duration_months} mois à{" "}
@@ -1102,6 +1109,8 @@ export default function Categorization() {
                                 start_date: "",
                                 capital_account_id: "",
                                 interest_account_id: "",
+                                insurance_amount: 0,
+                                insurance_account_id: "",
                               },
                             });
                           } else {
@@ -1574,6 +1583,97 @@ export default function Categorization() {
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           Compte pour la partie intérêts du remboursement
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Montant Assurance (€/mois)
+                        </label>
+                        <input
+                          type="number"
+                          value={
+                            formData.processor_config.insurance_amount || 0
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                insurance_amount: parseFloat(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          min="0"
+                          step="0.01"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Compte Assurance
+                        </label>
+                        <select
+                          value={
+                            formData.processor_config.insurance_account_id || ""
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                insurance_account_id: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                          required
+                        >
+                          <option value="" className="text-gray-900">
+                            Sélectionnez un compte
+                          </option>
+                          {realAccounts.length > 0 && (
+                            <optgroup
+                              label="Comptes réels"
+                              className="text-gray-900"
+                            >
+                              {realAccounts.map((account) => (
+                                <option
+                                  key={account.accountId}
+                                  value={account.accountId}
+                                  className="text-gray-900"
+                                >
+                                  {account.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {Object.entries(groupAccountsByCategory(accounts))
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([category, categoryAccounts]) => (
+                              <optgroup
+                                key={category}
+                                label={category}
+                                className="text-gray-900"
+                              >
+                                {categoryAccounts
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((account) => (
+                                    <option
+                                      key={account.accountId}
+                                      value={account.accountId}
+                                      className="text-gray-900"
+                                    >
+                                      {account.name} ({account.sub_category})
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Compte pour la partie assurance du remboursement
                         </p>
                       </div>
                     </>

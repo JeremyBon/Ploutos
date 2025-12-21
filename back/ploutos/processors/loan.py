@@ -43,6 +43,12 @@ class LoanConfig(ProcessorConfigBase):
     interest_account_id: UUID = Field(
         ..., description="Account UUID for interest component"
     )
+    insurance_amount: float = Field(
+        ..., description="Monthly insurance amount in euros", ge=0
+    )
+    insurance_account_id: UUID = Field(
+        ..., description="Account UUID for insurance component"
+    )
 
     @field_validator("annual_rate")
     @classmethod
@@ -252,21 +258,34 @@ class LoanProcessor(TransactionProcessor[LoanConfig]):
             )
             new_slaves.append(interest_slave)
 
-            # Slave 2: Capital (actual amount minus interest)
-            capital_amount = round(actual_amount - interest, 2)
+            # Slave 2: Capital (actual amount minus interest minus insurance)
+            capital_amount = round(
+                actual_amount - interest - config.insurance_amount, 2
+            )
             capital_slave = TransactionSlaveCreate(
                 masterId=transaction.transactionId,
                 accountId=config.capital_account_id,
                 amount=capital_amount,
-                type="credit",  # Inverse du master debit
+                type="credit",
                 date=transaction.date,
             )
             new_slaves.append(capital_slave)
+
+            # Slave 3: Insurance
+            insurance_slave = TransactionSlaveCreate(
+                masterId=transaction.transactionId,
+                accountId=config.insurance_account_id,
+                amount=config.insurance_amount,
+                type="credit",
+                date=transaction.date,
+            )
+            new_slaves.append(insurance_slave)
 
             # Log payment details
             logger.info(
                 f"Loan payment #{payment_number}/{config.duration_months}: "
                 f"Interest {interest}€, Capital {capital_amount}€, "
+                f"Insurance {config.insurance_amount}€, "
                 f"Remaining balance {remaining_balance}€"
             )
 
