@@ -1187,7 +1187,7 @@ export default function Home() {
                   <div className="text-gray-500">Chargement...</div>
                 ) : monthlySummary.revenues.length ? (
                   <div className="space-y-3">
-                    {monthlySummary.revenues.slice(0, 5).map((item) => (
+                    {monthlySummary.revenues.map((item) => (
                       <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
@@ -1293,7 +1293,7 @@ export default function Home() {
                   <div className="text-gray-500">Chargement...</div>
                 ) : monthlySummary.expenses.length ? (
                   <div className="space-y-3">
-                    {monthlySummary.expenses.slice(0, 5).map((item) => (
+                    {monthlySummary.expenses.map((item) => (
                       <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
