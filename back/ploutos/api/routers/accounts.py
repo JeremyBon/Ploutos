@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from ploutos.api.deps import SessionDep
 from ploutos.db.models import AccountCreate, AccountResponse, AccountUpdate
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
@@ -19,6 +19,32 @@ class AccountAmount(BaseModel):
     is_real: bool
     active: bool
     max_date: Optional[datetime] = None
+
+
+class DeferredDetail(BaseModel):
+    """Detail of a deferred transaction."""
+
+    slave_id: str
+    master_id: str
+    amount: float
+    master_date: datetime = Field(..., description="Master transaction date (payment)")
+    slave_date: datetime = Field(..., description="Slave date (consumption)")
+    description: str
+    account_name: str
+
+
+class DeferredBalance(BaseModel):
+    """Deferred account balance with details."""
+
+    total: float = Field(..., description="Total amount")
+    details: List[DeferredDetail] = Field(default_factory=list)
+
+
+class DeferredAccountsResponse(BaseModel):
+    """Response for /accounts/deferred endpoint."""
+
+    prepaid_expenses: DeferredBalance = Field(..., description="Prepaid Expenses")
+    deferred_revenue: DeferredBalance = Field(..., description="Deferred Revenue")
 
 
 @router.get("/accounts", response_model=list[AccountResponse])
@@ -216,3 +242,76 @@ async def get_current_amounts(db: SessionDep, include_archived: bool = False):
         )
         for account in accounts_response.data
     ]
+
+
+@router.get("/accounts/deferred", response_model=DeferredAccountsResponse)
+async def get_deferred_accounts(db: SessionDep):
+    """Get prepaid expenses (CCA) and deferred revenue (PCA) balances.
+
+    Prepaid Expenses (CCA): credit slaves where master date <= NOW and slave date > NOW
+    Deferred Revenue (PCA): debit slaves where master date <= NOW and slave date > NOW
+    Both only consider virtual accounts (is_real = false).
+    """
+    now = datetime.now().isoformat()
+
+    # Query slaves with master transaction and account info
+    response = (
+        db.table("TransactionsSlaves")
+        .select(
+            """
+            slaveId,
+            masterId,
+            amount,
+            type,
+            date,
+            accountId,
+            Transactions!inner (
+                transactionId,
+                date,
+                description
+            ),
+            Accounts!inner (
+                accountId,
+                name,
+                is_real
+            )
+            """
+        )
+        .eq("Accounts.is_real", False)
+        .lte("Transactions.date", now)
+        .gt("date", now)
+        .execute()
+    )
+
+    prepaid_details: List[DeferredDetail] = []
+    deferred_details: List[DeferredDetail] = []
+    prepaid_total = 0.0
+    deferred_total = 0.0
+
+    for slave in response.data:
+        master = slave.get("Transactions", {})
+        account = slave.get("Accounts", {})
+
+        detail = DeferredDetail(
+            slave_id=slave["slaveId"],
+            master_id=slave["masterId"],
+            amount=slave["amount"],
+            master_date=master.get("date"),
+            slave_date=slave["date"],
+            description=master.get("description", ""),
+            account_name=account.get("name", ""),
+        )
+
+        if slave["type"] == "credit":
+            prepaid_details.append(detail)
+            prepaid_total += slave["amount"]
+        elif slave["type"] == "debit":
+            deferred_details.append(detail)
+            deferred_total += slave["amount"]
+
+    return DeferredAccountsResponse(
+        prepaid_expenses=DeferredBalance(total=prepaid_total, details=prepaid_details),
+        deferred_revenue=DeferredBalance(
+            total=deferred_total, details=deferred_details
+        ),
+    )

@@ -27,7 +27,19 @@ ChartJS.register(
   ChartLegend
 );
 import Navigation from "@/components/Navigation";
+import TransactionEditModal from "@/components/TransactionEditModal";
 import { API_URL } from "@/config/api";
+
+/**
+ * Extrait l'année et le mois d'une chaîne de date (YYYY-MM-DD ou ISO)
+ * sans passer par Date pour éviter les problèmes de timezone
+ */
+function extractYearMonth(dateStr: string): { year: number; month: number } {
+  // Extraire la partie date (avant le T ou l'espace)
+  const datePart = dateStr.split(/[T ]/)[0];
+  const [year, month] = datePart.split("-").map(Number);
+  return { year, month };
+}
 
 interface Account {
   account_id: string;
@@ -46,6 +58,26 @@ interface VirtualAccount {
   sub_category: string;
   is_real: boolean;
   active: boolean;
+}
+
+interface DeferredDetail {
+  slave_id: string;
+  master_id: string;
+  amount: number;
+  master_date: string;
+  slave_date: string;
+  description: string;
+  account_name: string;
+}
+
+interface DeferredBalance {
+  total: number;
+  details: DeferredDetail[];
+}
+
+interface DeferredAccounts {
+  prepaid_expenses: DeferredBalance;
+  deferred_revenue: DeferredBalance;
 }
 
 interface TransactionSlave {
@@ -112,6 +144,11 @@ export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [allAccounts, setAllAccounts] = useState<VirtualAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [deferredAccounts, setDeferredAccounts] =
+    useState<DeferredAccounts | null>(null);
+  const [expandedTransit, setExpandedTransit] = useState<"cca" | "pca" | null>(
+    null
+  );
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [selectedYear, setSelectedYear] = useState<number>(
@@ -126,29 +163,9 @@ export default function Home() {
   const [editingTransaction, setEditingTransaction] =
     useState<DetailedTransaction | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({
-    description: "",
-    accountId: "",
-    category: "",
-    subCategory: "",
-  });
-  const [editSlaves, setEditSlaves] = useState<TransactionSlave[]>([]);
-  const [slaveCategoryFilters, setSlaveCategoryFilters] = useState<
-    Record<number, string>
-  >({});
-  const [slaveAccountTypes, setSlaveAccountTypes] = useState<
-    Record<number, "virtual" | "real">
-  >({});
-  const [isSaving, setIsSaving] = useState(false);
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [categoryDisplayCount, setCategoryDisplayCount] = useState<3 | 8>(3);
-  const [originalEditForm, setOriginalEditForm] = useState({
-    description: "",
-  });
-  const [originalEditSlaves, setOriginalEditSlaves] = useState<
-    TransactionSlave[]
-  >([]);
 
   const fetchAccounts = async () => {
     try {
@@ -175,6 +192,19 @@ export default function Home() {
       setAllAccounts(data);
     } catch (error) {
       console.error("Error fetching all accounts:", error);
+    }
+  };
+
+  const fetchDeferredAccounts = async () => {
+    try {
+      const response = await fetch(`${API_URL}/accounts/deferred`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch deferred accounts");
+      }
+      const data = await response.json();
+      setDeferredAccounts(data);
+    } catch (error) {
+      console.error("Error fetching deferred accounts:", error);
     }
   };
 
@@ -206,6 +236,7 @@ export default function Home() {
   useEffect(() => {
     fetchAccounts();
     fetchAllAccounts();
+    fetchDeferredAccounts();
   }, []);
 
   useEffect(() => {
@@ -222,9 +253,9 @@ export default function Home() {
       // Traiter les transactions slaves (détail des comptes)
       transaction.TransactionsSlaves.forEach((slave) => {
         // Filtrer uniquement les transactions du mois sélectionné
-        const slaveDate = new Date(slave.date);
-        const slaveYear = slaveDate.getFullYear();
-        const slaveMonth = slaveDate.getMonth() + 1;
+        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+          slave.date
+        );
         if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
         // Filtrer seulement les comptes virtuels (is_real = false)
         if (slave.slaveAccountIsReal === false) {
@@ -373,9 +404,9 @@ export default function Home() {
     transactions.forEach((transaction) => {
       transaction.TransactionsSlaves.forEach((slave) => {
         // Filtrer uniquement les transactions du mois sélectionné
-        const slaveDate = new Date(slave.date);
-        const slaveYear = slaveDate.getUTCFullYear();
-        const slaveMonth = slaveDate.getUTCMonth() + 1;
+        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+          slave.date
+        );
         if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
 
         // Filtrer seulement les comptes virtuels
@@ -436,62 +467,33 @@ export default function Home() {
 
   // Fonction pour ouvrir le modal d'édition
   const handleEditTransaction = (transaction: DetailedTransaction) => {
-    setEditingTransaction(transaction);
-
-    // Récupérer la transaction maître pour avoir les bonnes informations
+    // Récupérer la transaction maître pour avoir les slaves
     const masterTransaction = transactions.find(
       (t) => t.transactionId === transaction.transactionId
     );
 
-    // Récupérer le compte maître pour avoir la catégorie et sous-catégorie actuelles
+    // Récupérer le compte maître
     const masterAccount = masterTransaction
       ? accounts.find((acc) => acc.account_id === masterTransaction.accountId)
       : null;
 
-    setEditForm({
+    // Préparer la transaction pour le modal
+    const transactionForModal = {
+      transactionId: transaction.transactionId,
       description: transaction.description,
+      date: transaction.date,
+      amount: transaction.amount,
+      type: transaction.type,
       accountId: masterTransaction?.accountId || transaction.accountId,
+      accountName: transaction.accountName,
       category: masterAccount?.category || transaction.category,
       subCategory: masterAccount?.sub_category || transaction.subCategory,
-    });
+      TransactionsSlaves: masterTransaction?.TransactionsSlaves || [],
+    };
 
-    // Récupérer tous les slaves de cette transaction
-    if (masterTransaction) {
-      const slaves = [...masterTransaction.TransactionsSlaves];
-      setEditSlaves(slaves);
-
-      // Initialiser les filtres de catégorie et types de comptes
-      const initialFilters: Record<number, string> = {};
-      const initialTypes: Record<number, "virtual" | "real"> = {};
-      slaves.forEach((slave, index) => {
-        const slaveAccount = allAccounts.find(
-          (acc) => acc.accountId === slave.accountId
-        );
-        if (slaveAccount) {
-          initialTypes[index] = slaveAccount.is_real ? "real" : "virtual";
-          if (!slaveAccount.is_real) {
-            initialFilters[index] = slaveAccount.category;
-          }
-        } else {
-          initialTypes[index] = slave.slaveAccountIsReal ? "real" : "virtual";
-        }
-      });
-      setSlaveCategoryFilters(initialFilters);
-      setSlaveAccountTypes(initialTypes);
-
-      // Stocker les valeurs originales pour la détection de changements
-      setOriginalEditForm({
-        description: transaction.description,
-      });
-      setOriginalEditSlaves(JSON.parse(JSON.stringify(slaves)));
-    } else {
-      setEditSlaves([]);
-      setSlaveCategoryFilters({});
-      setSlaveAccountTypes({});
-      setOriginalEditForm({ description: transaction.description });
-      setOriginalEditSlaves([]);
-    }
-
+    setEditingTransaction(
+      transactionForModal as unknown as DetailedTransaction
+    );
     setShowEditModal(true);
   };
 
@@ -499,172 +501,60 @@ export default function Home() {
   const handleCloseEditModal = () => {
     setShowEditModal(false);
     setEditingTransaction(null);
-    setEditForm({
-      description: "",
-      accountId: "",
-      category: "",
-      subCategory: "",
-    });
-    setEditSlaves([]);
-    setSlaveCategoryFilters({});
-    setSlaveAccountTypes({});
-    setOriginalEditForm({ description: "" });
-    setOriginalEditSlaves([]);
   };
 
-  // Fonction pour modifier un slave
-  const handleSlaveChange = (
-    index: number,
-    field: keyof TransactionSlave,
-    value: string | number
+  // Fonction pour sauvegarder les modifications via le modal
+  const handleSaveTransaction = async (
+    transactionId: string,
+    description: string,
+    date: string,
+    slaves: TransactionSlave[]
   ) => {
-    const newSlaves = [...editSlaves];
-    newSlaves[index] = { ...newSlaves[index], [field]: value };
-    setEditSlaves(newSlaves);
-  };
-
-  // Fonction pour supprimer un slave
-  const handleRemoveSlave = (index: number) => {
-    const newSlaves = editSlaves.filter((_, i) => i !== index);
-    setEditSlaves(newSlaves);
-  };
-
-  // Fonction pour calculer le solde des slaves (débits - crédits)
-  const getSlavesBalance = () => {
-    return editSlaves.reduce((balance, slave) => {
-      const amount = slave.amount || 0;
-      if (slave.type.toLowerCase() === "debit") {
-        return balance + amount;
-      } else {
-        return balance - amount;
+    // Mettre à jour la transaction principale
+    const updateResponse = await fetch(
+      `${API_URL}/transactions/${transactionId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description,
+          date: new Date(date).toISOString(),
+        }),
       }
-    }, 0);
-  };
-
-  // Vérifier si le formulaire a été modifié
-  const isEditFormDirty = useMemo(() => {
-    // Check if description changed
-    if (editForm.description !== originalEditForm.description) return true;
-
-    // Check slaves changes
-    if (editSlaves.length !== originalEditSlaves.length) return true;
-
-    // Deep compare slaves
-    return editSlaves.some((slave, index) => {
-      const original = originalEditSlaves[index];
-      if (!original) return true;
-      return (
-        slave.accountId !== original.accountId ||
-        slave.amount !== original.amount ||
-        slave.type !== original.type
-      );
-    });
-  }, [editForm, originalEditForm, editSlaves, originalEditSlaves]);
-
-  // Fonction pour vérifier si la sauvegarde est possible
-  // Règle : crédit maître - débit maître = -(crédit slaves - débit slaves)
-  // Équivalent : masterBalance = slavesBalance (où slavesBalance = débits - crédits)
-  const canSave = () => {
-    if (!editingTransaction) return false;
-
-    // Doit avoir des changements pour sauvegarder
-    if (!isEditFormDirty) return false;
-
-    // Vérifier qu'aucun slave n'a un montant <= 0
-    const hasInvalidSlaves = editSlaves.some(
-      (slave) => Number(slave.amount) <= 0 || !slave.accountId
     );
-    if (hasInvalidSlaves) return false;
 
-    // Calculer le solde maître (crédit - débit)
-    const masterAmount = editingTransaction.amount || 0;
-    const masterBalance =
-      editingTransaction.type.toLowerCase() === "credit"
-        ? masterAmount
-        : -masterAmount;
-
-    // Le solde slaves (débits - crédits) doit être égal au solde maître
-    const slavesBalance = getSlavesBalance();
-    return Math.abs(masterBalance - slavesBalance) < 0.01; // Tolérance pour les erreurs d'arrondi
-  };
-
-  // Fonction pour ajouter un nouveau slave
-  const handleAddSlave = () => {
-    const virtualAccounts = allAccounts.filter((acc) => !acc.is_real);
-    const defaultAccount = virtualAccounts[0];
-
-    const newSlave: TransactionSlave = {
-      slaveId: `temp-${Date.now()}`, // ID temporaire
-      type: "debit",
-      amount: 0,
-      date: new Date().toISOString(),
-      accountId: defaultAccount?.accountId || "",
-      masterId: editingTransaction?.transactionId || "",
-      slaveAccountName: defaultAccount?.name || "",
-      slaveAccountIsReal: false,
-    };
-    setEditSlaves([...editSlaves, newSlave]);
-  };
-
-  // Fonction pour sauvegarder les modifications
-  const handleSaveTransaction = async () => {
-    if (!editingTransaction) return;
-
-    setIsSaving(true);
-    try {
-      // Mettre à jour la transaction principale
-      const updateResponse = await fetch(
-        `${API_URL}/transactions/${editingTransaction.transactionId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            description: editForm.description,
-            date: new Date(editingTransaction.date).toISOString(), // Garder la date originale
-          }),
-        }
-      );
-
-      if (!updateResponse.ok) {
-        throw new Error("Failed to update transaction");
-      }
-
-      // Mettre à jour les slaves transactions
-      const slaveUpdateResponse = await fetch(
-        `${API_URL}/transactions/${editingTransaction.transactionId}/slaves`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            slaves: editSlaves.map((slave) => ({
-              slaveId: slave.slaveId,
-              type: slave.type,
-              amount: slave.amount,
-              date: slave.date,
-              accountId: slave.accountId,
-            })),
-          }),
-        }
-      );
-
-      if (!slaveUpdateResponse.ok) {
-        throw new Error("Failed to update transaction slave");
-      }
-
-      // Recharger les transactions pour mettre à jour l'affichage
-      await fetchTransactions();
-
-      // Fermer le modal
-      handleCloseEditModal();
-    } catch (error) {
-      console.error("Error updating transaction:", error);
-    } finally {
-      setIsSaving(false);
+    if (!updateResponse.ok) {
+      throw new Error("Failed to update transaction");
     }
+
+    // Mettre à jour les slaves transactions
+    const slaveUpdateResponse = await fetch(
+      `${API_URL}/transactions/${transactionId}/slaves`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slaves: slaves.map((slave) => ({
+            slaveId: slave.slaveId,
+            type: slave.type,
+            amount: slave.amount,
+            date: slave.date,
+            accountId: slave.accountId,
+          })),
+        }),
+      }
+    );
+
+    if (!slaveUpdateResponse.ok) {
+      throw new Error("Failed to update transaction slave");
+    }
+
+    // Recharger les transactions pour mettre à jour l'affichage
+    await fetchTransactions();
   };
 
   const totalRevenues = monthlySummary.revenues.reduce(
@@ -698,9 +588,7 @@ export default function Home() {
       t.TransactionsSlaves.forEach((slave) => {
         // On ne veut que les comptes virtuels
         if (slave.slaveAccountIsReal === false) {
-          const sd = new Date(slave.date);
-          const sy = sd.getFullYear();
-          const sm = sd.getMonth() + 1;
+          const { year: sy, month: sm } = extractYearMonth(slave.date);
           const idx = months.findIndex((m) => m.year === sy && m.month === sm);
           if (idx === -1) return;
           const isRevenue = slave.type.toLowerCase() === "debit";
@@ -751,9 +639,7 @@ export default function Home() {
         (acc) => acc.account_id === t.accountId
       );
       if (masterAccount && masterAccount.is_real) {
-        const td = new Date(t.date);
-        const ty = td.getFullYear();
-        const tm = td.getMonth() + 1;
+        const { year: ty, month: tm } = extractYearMonth(t.date);
         const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
           const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
           return d.getFullYear() === ty && d.getMonth() + 1 === tm;
@@ -769,9 +655,7 @@ export default function Home() {
       // 2. Traiter les slaves sur des comptes réels
       t.TransactionsSlaves.forEach((slave) => {
         if (slave.slaveAccountIsReal === true) {
-          const sd = new Date(slave.date);
-          const sy = sd.getFullYear();
-          const sm = sd.getMonth() + 1;
+          const { year: sy, month: sm } = extractYearMonth(slave.date);
           const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
             // match by comparing year/month from labels: rebuild month objects
             const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
@@ -1016,6 +900,139 @@ export default function Home() {
                 </>
               )}
             </div>
+
+            {/* En Transit Widget - CCA/PCA */}
+            {deferredAccounts &&
+              (deferredAccounts.prepaid_expenses.total > 0 ||
+                deferredAccounts.deferred_revenue.total > 0) && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    En transit
+                  </h3>
+
+                  {/* CCA - Charges Constatées d'Avance */}
+                  {deferredAccounts.prepaid_expenses.total > 0 && (
+                    <div className="mb-3">
+                      <div
+                        className="flex justify-between items-center p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors"
+                        onClick={() =>
+                          setExpandedTransit(
+                            expandedTransit === "cca" ? null : "cca"
+                          )
+                        }
+                      >
+                        <div>
+                          <p className="font-medium text-orange-800">CCA</p>
+                          <p className="text-xs text-orange-600">
+                            Charges constatées d&apos;avance
+                          </p>
+                        </div>
+                        <p className="font-semibold text-orange-600">
+                          {deferredAccounts.prepaid_expenses.total.toLocaleString(
+                            "fr-FR",
+                            {
+                              style: "currency",
+                              currency: "EUR",
+                            }
+                          )}
+                        </p>
+                      </div>
+
+                      {expandedTransit === "cca" && (
+                        <div className="mt-2 ml-2 space-y-1">
+                          {deferredAccounts.prepaid_expenses.details.map(
+                            (detail) => (
+                              <div
+                                key={detail.slave_id}
+                                className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-700 truncate">
+                                    {detail.description}
+                                  </p>
+                                  <p className="text-gray-500">
+                                    {detail.account_name} -{" "}
+                                    {new Date(
+                                      detail.slave_date
+                                    ).toLocaleDateString("fr-FR")}
+                                  </p>
+                                </div>
+                                <p className="font-semibold text-orange-600 ml-2">
+                                  {detail.amount.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PCA - Produits Constatés d'Avance */}
+                  {deferredAccounts.deferred_revenue.total > 0 && (
+                    <div>
+                      <div
+                        className="flex justify-between items-center p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
+                        onClick={() =>
+                          setExpandedTransit(
+                            expandedTransit === "pca" ? null : "pca"
+                          )
+                        }
+                      >
+                        <div>
+                          <p className="font-medium text-blue-800">PCA</p>
+                          <p className="text-xs text-blue-600">
+                            Produits constatés d&apos;avance
+                          </p>
+                        </div>
+                        <p className="font-semibold text-blue-600">
+                          {deferredAccounts.deferred_revenue.total.toLocaleString(
+                            "fr-FR",
+                            {
+                              style: "currency",
+                              currency: "EUR",
+                            }
+                          )}
+                        </p>
+                      </div>
+
+                      {expandedTransit === "pca" && (
+                        <div className="mt-2 ml-2 space-y-1">
+                          {deferredAccounts.deferred_revenue.details.map(
+                            (detail) => (
+                              <div
+                                key={detail.slave_id}
+                                className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-gray-700 truncate">
+                                    {detail.description}
+                                  </p>
+                                  <p className="text-gray-500">
+                                    {detail.account_name} -{" "}
+                                    {new Date(
+                                      detail.slave_date
+                                    ).toLocaleDateString("fr-FR")}
+                                  </p>
+                                </div>
+                                <p className="font-semibold text-blue-600 ml-2">
+                                  {detail.amount.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
 
           {/* Main Content Area */}
@@ -1170,7 +1187,7 @@ export default function Home() {
                   <div className="text-gray-500">Chargement...</div>
                 ) : monthlySummary.revenues.length ? (
                   <div className="space-y-3">
-                    {monthlySummary.revenues.slice(0, 5).map((item) => (
+                    {monthlySummary.revenues.map((item) => (
                       <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
@@ -1276,7 +1293,7 @@ export default function Home() {
                   <div className="text-gray-500">Chargement...</div>
                 ) : monthlySummary.expenses.length ? (
                   <div className="space-y-3">
-                    {monthlySummary.expenses.slice(0, 5).map((item) => (
+                    {monthlySummary.expenses.map((item) => (
                       <div key={item.categoryKey}>
                         <div
                           className="flex justify-between items-center p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
@@ -1466,552 +1483,32 @@ export default function Home() {
             </div>
 
             {/* Modal d'édition des transactions */}
-            {showEditModal && editingTransaction && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-                  <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      Modifier la transaction
-                    </h3>
-                    <button
-                      onClick={handleCloseEditModal}
-                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-6 w-6 text-gray-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="p-6 overflow-y-auto max-h-[60vh]">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Colonne gauche - Transaction maître */}
-                      <div className="space-y-4">
-                        <div className="border-b border-gray-200 pb-3">
-                          <h4 className="text-lg font-semibold text-gray-800 mb-2">
-                            Transaction maître
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            Informations générales de la transaction principale
-                          </p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Description
-                          </label>
-                          <textarea
-                            value={editForm.description}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                description: e.target.value,
-                              })
-                            }
-                            className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium resize-none"
-                            placeholder="Description de la transaction"
-                            rows={Math.max(
-                              2,
-                              (editForm.description.match(/\n/g) || []).length +
-                                1 +
-                                Math.ceil(editForm.description.length / 60)
-                            )}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Compte principal
-                          </label>
-                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                            {editingTransaction.accountName ||
-                              "Compte non trouvé"}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Catégorie
-                          </label>
-                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                            {editForm.category || "Non définie"}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sous-catégorie
-                          </label>
-                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-700">
-                            {editForm.subCategory || "Non définie"}
-                          </div>
-                        </div>
-
-                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                          <h5 className="font-medium text-blue-800 mb-2">
-                            Informations de la transaction maître
-                          </h5>
-                          <div className="space-y-1">
-                            <p className="text-sm text-blue-700">
-                              <span className="font-medium">ID:</span>{" "}
-                              <code className="bg-blue-100 px-1 rounded text-xs">
-                                {editingTransaction.transactionId}
-                              </code>
-                            </p>
-                            <p className="text-sm text-blue-700">
-                              <span className="font-medium">Date:</span>{" "}
-                              {new Date(
-                                editingTransaction.date
-                              ).toLocaleDateString("fr-FR")}
-                            </p>
-                            <p className="text-sm text-blue-700">
-                              <span className="font-medium">
-                                Montant total:
-                              </span>{" "}
-                              {editSlaves
-                                .reduce((sum, slave) => sum + slave.amount, 0)
-                                .toLocaleString("fr-FR", {
-                                  style: "currency",
-                                  currency: "EUR",
-                                })}
-                            </p>
-                            <p className="text-sm text-blue-700">
-                              <span className="font-medium">Type:</span>{" "}
-                              {editingTransaction.type}
-                            </p>
-                            <p className="text-sm text-blue-700">
-                              <span className="font-medium">
-                                Nombre de transactions slaves:
-                              </span>{" "}
-                              {editSlaves.length}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Colonne droite - Transactions slaves */}
-                      <div className="space-y-4">
-                        <div className="border-b border-gray-200 pb-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="text-lg font-semibold text-gray-800 mb-2">
-                                Transactions slaves
-                              </h4>
-                              <p className="text-sm text-gray-600">
-                                Détail des transactions associées
-                              </p>
-                            </div>
-                            <button
-                              onClick={handleAddSlave}
-                              className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                            >
-                              + Ajouter
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                          {editSlaves.map((slave, index) => {
-                            const isCredit =
-                              slave.type.toLowerCase() === "credit";
-                            return (
-                              <div
-                                key={slave.slaveId}
-                                className={`border rounded-lg p-4 ${isCredit ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}
-                              >
-                                <div className="flex items-center justify-between mb-3">
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className={`w-6 h-6 text-white text-xs rounded-full flex items-center justify-center font-medium ${isCredit ? "bg-red-600" : "bg-green-600"}`}
-                                    >
-                                      {index + 1}
-                                    </div>
-                                    <h5
-                                      className={`font-medium ${isCredit ? "text-red-800" : "text-green-800"}`}
-                                    >
-                                      Transaction slave {index + 1}
-                                    </h5>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemoveSlave(index)}
-                                    className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
-                                    title="Supprimer cette transaction"
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      className="h-4 w-4"
-                                      viewBox="0 0 20 20"
-                                      fill="currentColor"
-                                    >
-                                      <path
-                                        fillRule="evenodd"
-                                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                        clipRule="evenodd"
-                                      />
-                                    </svg>
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Type de compte
-                                    </label>
-                                    <select
-                                      value={
-                                        slaveAccountTypes[index] || "virtual"
-                                      }
-                                      onChange={(e) => {
-                                        const newType = e.target.value as
-                                          | "virtual"
-                                          | "real";
-                                        setSlaveAccountTypes({
-                                          ...slaveAccountTypes,
-                                          [index]: newType,
-                                        });
-                                        // Sélectionner automatiquement le premier compte du nouveau type
-                                        if (newType === "real") {
-                                          const firstRealAccount = accounts[0];
-                                          if (firstRealAccount) {
-                                            setEditSlaves((prevSlaves) => {
-                                              const newSlaves = [...prevSlaves];
-                                              newSlaves[index] = {
-                                                ...newSlaves[index],
-                                                accountId:
-                                                  firstRealAccount.account_id,
-                                                slaveAccountName:
-                                                  firstRealAccount.name,
-                                                slaveAccountIsReal: true,
-                                              };
-                                              return newSlaves;
-                                            });
-                                          }
-                                        } else {
-                                          const firstVirtualAccount =
-                                            allAccounts.find(
-                                              (acc) => !acc.is_real
-                                            );
-                                          if (firstVirtualAccount) {
-                                            setEditSlaves((prevSlaves) => {
-                                              const newSlaves = [...prevSlaves];
-                                              newSlaves[index] = {
-                                                ...newSlaves[index],
-                                                accountId:
-                                                  firstVirtualAccount.accountId,
-                                                slaveAccountName:
-                                                  firstVirtualAccount.name,
-                                                slaveAccountIsReal: false,
-                                              };
-                                              return newSlaves;
-                                            });
-                                            setSlaveCategoryFilters({
-                                              ...slaveCategoryFilters,
-                                              [index]:
-                                                firstVirtualAccount.category,
-                                            });
-                                          }
-                                        }
-                                      }}
-                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
-                                    >
-                                      <option value="virtual">
-                                        Virtuel (catégorie)
-                                      </option>
-                                      <option value="real">
-                                        Réel (banque)
-                                      </option>
-                                    </select>
-                                  </div>
-
-                                  {slaveAccountTypes[index] === "real" ? (
-                                    // Compte réel - sélection parmi les comptes réels
-                                    <div>
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                                        Compte réel
-                                      </label>
-                                      <select
-                                        value={slave.accountId}
-                                        onChange={(e) => {
-                                          const selectedAccount = accounts.find(
-                                            (acc) =>
-                                              acc.account_id === e.target.value
-                                          );
-                                          setEditSlaves((prevSlaves) => {
-                                            const newSlaves = [...prevSlaves];
-                                            newSlaves[index] = {
-                                              ...newSlaves[index],
-                                              accountId: e.target.value,
-                                              slaveAccountName:
-                                                selectedAccount?.name ||
-                                                newSlaves[index]
-                                                  .slaveAccountName,
-                                              slaveAccountIsReal: true,
-                                            };
-                                            return newSlaves;
-                                          });
-                                        }}
-                                        className="w-full px-2 py-1.5 text-sm border-2 border-blue-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-blue-50 text-gray-800 font-medium"
-                                      >
-                                        <option value="" disabled>
-                                          Sélectionner un compte réel
-                                        </option>
-                                        {accounts.map((account) => (
-                                          <option
-                                            key={account.account_id}
-                                            value={account.account_id}
-                                          >
-                                            {account.name} ({account.category})
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  ) : (
-                                    // Compte virtuel - filtre catégorie
-                                    <div>
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                                        Catégorie (filtre)
-                                      </label>
-                                      <select
-                                        value={
-                                          slaveCategoryFilters[index] || ""
-                                        }
-                                        onChange={(e) => {
-                                          const newCategory = e.target.value;
-                                          setSlaveCategoryFilters({
-                                            ...slaveCategoryFilters,
-                                            [index]: newCategory,
-                                          });
-                                          // Sélectionner automatiquement le premier compte de la nouvelle catégorie
-                                          const firstAccountInCategory =
-                                            allAccounts.find(
-                                              (acc) =>
-                                                !acc.is_real &&
-                                                (!newCategory ||
-                                                  acc.category === newCategory)
-                                            );
-                                          if (firstAccountInCategory) {
-                                            setEditSlaves((prevSlaves) => {
-                                              const newSlaves = [...prevSlaves];
-                                              newSlaves[index] = {
-                                                ...newSlaves[index],
-                                                accountId:
-                                                  firstAccountInCategory.accountId,
-                                                slaveAccountName:
-                                                  firstAccountInCategory.name,
-                                                slaveAccountIsReal: false,
-                                              };
-                                              return newSlaves;
-                                            });
-                                          }
-                                        }}
-                                        className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
-                                      >
-                                        <option value="">
-                                          Toutes les catégories
-                                        </option>
-                                        {[
-                                          ...new Set(
-                                            allAccounts
-                                              .filter((acc) => !acc.is_real)
-                                              .map((acc) => acc.category)
-                                          ),
-                                        ].map((category) => (
-                                          <option
-                                            key={category}
-                                            value={category}
-                                          >
-                                            {category}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  )}
-
-                                  {slaveAccountTypes[index] !== "real" && (
-                                    <div className="col-span-2">
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                                        Compte virtuel
-                                      </label>
-                                      <select
-                                        value={slave.accountId}
-                                        onChange={(e) => {
-                                          const selectedAccount =
-                                            allAccounts.find(
-                                              (acc) =>
-                                                acc.accountId === e.target.value
-                                            );
-                                          setEditSlaves((prevSlaves) => {
-                                            const newSlaves = [...prevSlaves];
-                                            newSlaves[index] = {
-                                              ...newSlaves[index],
-                                              accountId: e.target.value,
-                                              slaveAccountName:
-                                                selectedAccount?.name ||
-                                                newSlaves[index]
-                                                  .slaveAccountName,
-                                              slaveAccountIsReal: false,
-                                            };
-                                            return newSlaves;
-                                          });
-                                        }}
-                                        className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
-                                      >
-                                        <option value="" disabled>
-                                          Sélectionner un compte
-                                        </option>
-                                        {slave.accountId &&
-                                          !allAccounts.some(
-                                            (acc) =>
-                                              !acc.is_real &&
-                                              acc.accountId ===
-                                                slave.accountId &&
-                                              (!slaveCategoryFilters[index] ||
-                                                acc.category ===
-                                                  slaveCategoryFilters[index])
-                                          ) && (
-                                            <option value={slave.accountId}>
-                                              {slave.slaveAccountName ||
-                                                "Compte actuel"}
-                                            </option>
-                                          )}
-                                        {allAccounts
-                                          .filter(
-                                            (acc) =>
-                                              !acc.is_real &&
-                                              (!slaveCategoryFilters[index] ||
-                                                acc.category ===
-                                                  slaveCategoryFilters[index])
-                                          )
-                                          .map((account) => (
-                                            <option
-                                              key={account.accountId}
-                                              value={account.accountId}
-                                            >
-                                              {account.name}
-                                            </option>
-                                          ))}
-                                      </select>
-                                    </div>
-                                  )}
-
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Type
-                                    </label>
-                                    <select
-                                      value={slave.type}
-                                      onChange={(e) =>
-                                        handleSlaveChange(
-                                          index,
-                                          "type",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
-                                    >
-                                      <option value="debit">Débit</option>
-                                      <option value="credit">Crédit</option>
-                                    </select>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Montant (€)
-                                    </label>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={slave.amount}
-                                      onChange={(e) =>
-                                        handleSlaveChange(
-                                          index,
-                                          "amount",
-                                          parseFloat(e.target.value) || 0
-                                        )
-                                      }
-                                      className="w-full px-2 py-1.5 text-sm border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Date
-                                    </label>
-                                    <div className="w-full px-2 py-1.5 text-sm bg-gray-200 border-2 border-gray-300 rounded-md text-gray-600 font-medium">
-                                      {new Date(slave.date).toLocaleDateString(
-                                        "fr-FR"
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          {editSlaves.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-12 w-12 mx-auto text-gray-400 mb-3"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                              </svg>
-                              <p className="text-sm font-medium text-gray-600">
-                                Aucune transaction slave
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Cliquez sur &quot;Ajouter&quot; pour créer une
-                                nouvelle transaction slave
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
-                    <button
-                      onClick={handleCloseEditModal}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                      disabled={isSaving}
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      onClick={handleSaveTransaction}
-                      disabled={isSaving || !canSave()}
-                      className={`px-4 py-2 rounded-lg transition-colors ${
-                        isSaving || !canSave()
-                          ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                    >
-                      {isSaving ? "Sauvegarde..." : "Sauvegarder"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            <TransactionEditModal
+              isOpen={showEditModal}
+              transaction={
+                editingTransaction
+                  ? {
+                      transactionId: editingTransaction.transactionId,
+                      description: editingTransaction.description,
+                      date: editingTransaction.date,
+                      amount: editingTransaction.amount,
+                      type: editingTransaction.type,
+                      accountId: editingTransaction.accountId,
+                      accountName: editingTransaction.accountName,
+                      category: editingTransaction.category,
+                      subCategory: editingTransaction.subCategory,
+                      TransactionsSlaves: (
+                        editingTransaction as unknown as {
+                          TransactionsSlaves: TransactionSlave[];
+                        }
+                      ).TransactionsSlaves,
+                    }
+                  : null
+              }
+              accounts={allAccounts}
+              onClose={handleCloseEditModal}
+              onSave={handleSaveTransaction}
+            />
           </div>
         </div>
       </main>

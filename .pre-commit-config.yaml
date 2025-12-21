@@ -33,6 +33,13 @@ repos:
         language: system
         files: ^front/src/.*\.[jt]sx?$
         pass_filenames: true
+      - id: vitest
+        name: Vitest (frontend tests)
+        entry: bash -c 'cd front && npm run test:run'
+        language: system
+        files: ^front/src/.*\.[jt]sx?$
+        pass_filenames: false
+        always_run: false
       - id: commitlint
         name: Commitlint
         entry: bash -c 'cd front && npx commitlint --edit "$1"' --

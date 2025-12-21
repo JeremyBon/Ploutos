@@ -29,31 +29,92 @@ cd back && poetry install
 cd front && npm install
 ```
 
+## Architecture Supabase
+
+Le projet utilise une architecture hybride :
+
+| Environnement | Supabase | Fichier config |
+|---------------|----------|----------------|
+| `local` (défaut) | Self-hosted (Docker) | `.env.local` |
+| `prod` | Cloud | `.env` |
+
+### Setup Local
+
+```bash
+# 1. Installer et démarrer Supabase local
+brew install supabase/tap/supabase
+supabase start
+
+# 2. Configurer le backend
+cd back
+cp .env.local.example .env.local
+# Éditer .env.local avec les credentials affichés par supabase start
+```
+
+### Basculer entre environnements
+
+```bash
+# Local (défaut)
+poetry run uvicorn ploutos.api.main:app --reload --port 8080
+
+# Production
+ENV=prod poetry run uvicorn ploutos.api.main:app --port 8080
+```
+
+### Migrations
+
+```bash
+supabase migration new nom_migration  # Créer
+supabase db reset                      # Appliquer en local
+supabase db push                       # Pusher vers Cloud
+```
+
 ## Run the project
 
-In one terminal, run the following command to start the Next.js server:
+### VS Code (recommandé)
+
+Utilise les **Tasks VS Code** pour lancer les services :
+
+| Raccourci | Action |
+|-----------|--------|
+| `Cmd+Shift+B` | Dev Start (Supabase local + Backend + Frontend) |
+| `Cmd+Shift+P` → "Run Task" → "Prod Start" | Backend (Supabase Cloud) + Frontend |
+| `Cmd+Shift+P` → "Run Task" → "Stop All" | Arrête tous les services |
+
+
+### Manuel
+
 ```bash
-cd front && npm run dev 
+# Terminal 1 - Supabase local
+cd supabase && supabase start
+
+# Terminal 2 - Backend
+cd back && poetry run uvicorn ploutos.main:app --reload
+
+# Terminal 3 - Frontend
+cd front && npm run dev
 ```
 
-In another terminal, run the following command to start the Nest.js server:
-```bash
-cd back && poetry run uvicorn ploutos.api.main:app --reload --log-level debug --port 8080
-```
-Go on the following url to access the website:
-```
-http://localhost:3000
-```
-and on the following url to access the API:
-```
-http://localhost:8080/docs
-```
+### URLs
+
+- Frontend : http://localhost:3000
+- API docs : http://localhost:8000/docs
 
 ## Tests
 
+### Backend
 ```bash
 cd back && poetry run pytest
 ```
+
+### Frontend
+```bash
+cd front && npm test          # Mode watch
+cd front && npm run test:run  # Execution unique
+cd front && npm run test:coverage  # Avec couverture
+```
+
+Le frontend utilise Vitest pour les tests unitaires. Les fichiers de test sont places a cote des fichiers source avec l'extension `.test.ts` ou `.test.tsx`.
 
 ## Database Backup & Restore
 
@@ -69,8 +130,9 @@ cd back && poetry run pytest
 Dans back:
 ```bash
 pg_dump \
-  "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  "postgresql://postgres:[PASSWORD]@db.cdaunrvoljkqoimtrtpc.supabase.co:5432/postgres" \
   -Fc \
+  -n public \
   -f backup_$(date +%Y%m%d).dump
 ```
 
@@ -79,9 +141,10 @@ pg_dump \
 Dans back:
 ```bash
 pg_restore \
-  -d "postgresql://postgres.cdaunrvoljkqoimtrtpc:[VOTRE_PASSWORD]@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?sslmode=require" \
+  -d "postgresql://postgres:[PASSWORD]@db.cdaunrvoljkqoimtrtpc.supabase.co:5432/postgres" \
   --clean \
   --if-exists \
+  -n public \
   backup.dump
 ```
 

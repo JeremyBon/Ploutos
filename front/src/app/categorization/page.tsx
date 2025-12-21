@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Navigation from "@/components/Navigation";
+import TransactionSlavesPreviewModal from "@/components/TransactionSlavesPreviewModal";
 import { API_URL } from "@/config/api";
 
 interface Account {
@@ -26,6 +27,8 @@ interface ProcessorConfig {
   start_date?: string;
   capital_account_id?: string;
   interest_account_id?: string;
+  insurance_amount?: number;
+  insurance_account_id?: string;
   [key: string]: unknown;
 }
 
@@ -73,11 +76,17 @@ interface MatchingResult {
   }>;
 }
 
+interface PreviewSlave {
+  account_name: string;
+  amount: number;
+}
+
 interface PreviewMatch {
   transaction_id: string;
   description: string;
   amount: number;
   date: string;
+  slaves: PreviewSlave[];
 }
 
 interface MatchingPreviewResult {
@@ -133,6 +142,8 @@ export default function Categorization() {
   const [previewResult, setPreviewResult] =
     useState<MatchingPreviewResult | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [selectedPreviewMatch, setSelectedPreviewMatch] =
+    useState<PreviewMatch | null>(null);
 
   // Form state
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -449,6 +460,11 @@ export default function Categorization() {
           <div>
             <span className="font-semibold">Intérêts:</span>{" "}
             {getAccountName(config.interest_account_id)}
+          </div>
+          <div>
+            <span className="font-semibold">Assurance:</span>{" "}
+            {getAccountName(config.insurance_account_id)} (
+            {config.insurance_amount}€/mois)
           </div>
           <div className="text-gray-500 mt-1">
             {config.loan_amount}€ sur {config.duration_months} mois à{" "}
@@ -1093,6 +1109,8 @@ export default function Categorization() {
                                 start_date: "",
                                 capital_account_id: "",
                                 interest_account_id: "",
+                                insurance_amount: 0,
+                                insurance_account_id: "",
                               },
                             });
                           } else {
@@ -1383,7 +1401,7 @@ export default function Categorization() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             min="0"
                             max="100"
-                            step="0.01"
+                            step="0.001"
                             required
                           />
                         </div>
@@ -1459,6 +1477,22 @@ export default function Categorization() {
                           <option value="" className="text-gray-900">
                             Sélectionnez un compte
                           </option>
+                          {realAccounts.length > 0 && (
+                            <optgroup
+                              label="Comptes réels"
+                              className="text-gray-900"
+                            >
+                              {realAccounts.map((account) => (
+                                <option
+                                  key={account.accountId}
+                                  value={account.accountId}
+                                  className="text-gray-900"
+                                >
+                                  {account.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                           {Object.entries(groupAccountsByCategory(accounts))
                             .sort(([a], [b]) => a.localeCompare(b))
                             .map(([category, categoryAccounts]) => (
@@ -1509,6 +1543,22 @@ export default function Categorization() {
                           <option value="" className="text-gray-900">
                             Sélectionnez un compte
                           </option>
+                          {realAccounts.length > 0 && (
+                            <optgroup
+                              label="Comptes réels"
+                              className="text-gray-900"
+                            >
+                              {realAccounts.map((account) => (
+                                <option
+                                  key={account.accountId}
+                                  value={account.accountId}
+                                  className="text-gray-900"
+                                >
+                                  {account.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                           {Object.entries(groupAccountsByCategory(accounts))
                             .sort(([a], [b]) => a.localeCompare(b))
                             .map(([category, categoryAccounts]) => (
@@ -1533,6 +1583,97 @@ export default function Categorization() {
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           Compte pour la partie intérêts du remboursement
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Montant Assurance (€/mois)
+                        </label>
+                        <input
+                          type="number"
+                          value={
+                            formData.processor_config.insurance_amount || 0
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                insurance_amount: parseFloat(e.target.value),
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          min="0"
+                          step="0.01"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Compte Assurance
+                        </label>
+                        <select
+                          value={
+                            formData.processor_config.insurance_account_id || ""
+                          }
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              processor_config: {
+                                ...formData.processor_config,
+                                insurance_account_id: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                          required
+                        >
+                          <option value="" className="text-gray-900">
+                            Sélectionnez un compte
+                          </option>
+                          {realAccounts.length > 0 && (
+                            <optgroup
+                              label="Comptes réels"
+                              className="text-gray-900"
+                            >
+                              {realAccounts.map((account) => (
+                                <option
+                                  key={account.accountId}
+                                  value={account.accountId}
+                                  className="text-gray-900"
+                                >
+                                  {account.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {Object.entries(groupAccountsByCategory(accounts))
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([category, categoryAccounts]) => (
+                              <optgroup
+                                key={category}
+                                label={category}
+                                className="text-gray-900"
+                              >
+                                {categoryAccounts
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((account) => (
+                                    <option
+                                      key={account.accountId}
+                                      value={account.accountId}
+                                      className="text-gray-900"
+                                    >
+                                      {account.name} ({account.sub_category})
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Compte pour la partie assurance du remboursement
                         </p>
                       </div>
                     </>
@@ -1628,8 +1769,29 @@ export default function Categorization() {
                                 )}
                               </div>
                             </div>
-                            <div className="text-lg font-bold text-gray-900 ml-4">
-                              {match.amount.toFixed(2)}€
+                            <div className="flex items-center gap-3">
+                              <div className="text-lg font-bold text-gray-900">
+                                {match.amount.toFixed(2)}€
+                              </div>
+                              <button
+                                onClick={() => setSelectedPreviewMatch(match)}
+                                className="text-blue-600 hover:text-blue-800 p-1 rounded transition-colors"
+                                title="Voir les transactions associees"
+                              >
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-5 w-5"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1650,6 +1812,13 @@ export default function Categorization() {
             </div>
           </div>
         )}
+
+        {/* Transaction Slaves Preview Modal */}
+        <TransactionSlavesPreviewModal
+          isOpen={!!selectedPreviewMatch}
+          transaction={selectedPreviewMatch}
+          onClose={() => setSelectedPreviewMatch(null)}
+        />
 
         {/* Rules List */}
         <div className="bg-white rounded-lg shadow overflow-hidden">

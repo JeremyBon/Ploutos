@@ -41,6 +41,8 @@ def valid_loan_config():
         "start_date": "2024-01-01",
         "capital_account_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
         "interest_account_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+        "insurance_amount": 8.50,
+        "insurance_account_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
     }
 
 
@@ -76,8 +78,8 @@ def loan_transaction(correct_unknown_account, sample_accounts):
 
     # Calculate theoretical amount for payment #2
     # For a 200,000€ loan at 1.5% over 240 months:
-    # Monthly payment = 965.09€
-    theoretical_amount = 965.09
+    # Monthly payment = 965.09€ + 8.50€ insurance = 973.59€
+    theoretical_amount = 973.59
 
     return TransactionWithSlaves(
         transactionId=master_id,
@@ -118,11 +120,14 @@ def test_loan_config_valid():
         start_date=date(2024, 1, 1),
         capital_account_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
         interest_account_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+        insurance_amount=8.50,
+        insurance_account_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
     )
 
     assert config.loan_amount == 200000.0
     assert config.annual_rate == 1.5
     assert config.duration_months == 240
+    assert config.insurance_amount == 8.50
 
 
 @pytest.mark.parametrize(
@@ -143,6 +148,8 @@ def test_loan_config_invalid_loan_amount(loan_amount, expected_error):
             start_date=date(2024, 1, 1),
             capital_account_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
             interest_account_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            insurance_amount=8.50,
+            insurance_account_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
         )
 
 
@@ -165,6 +172,8 @@ def test_loan_config_invalid_annual_rate(annual_rate, expected_error):
             start_date=date(2024, 1, 1),
             capital_account_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
             interest_account_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            insurance_amount=8.50,
+            insurance_account_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
         )
 
 
@@ -177,6 +186,8 @@ def test_loan_config_high_annual_rate_warning():
         start_date=date(2024, 1, 1),
         capital_account_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
         interest_account_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+        insurance_amount=8.50,
+        insurance_account_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
     )
 
     assert config.annual_rate == 60.0
@@ -201,6 +212,8 @@ def test_loan_config_invalid_duration_months(duration_months, expected_error):
             start_date=date(2024, 1, 1),
             capital_account_id=UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
             interest_account_id=UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            insurance_amount=8.50,
+            insurance_account_id=UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
         )
 
 
@@ -369,7 +382,7 @@ def test_loan_processor_successful_processing(
 
     assert result["success"] is True
     assert result["error_message"] is None
-    assert len(result["slaves"]) == 2  # Only principal + interest (no unknown)
+    assert len(result["slaves"]) == 3  # principal + interest + insurance
 
     # Check slaves have correct type (credit, inverse of debit master)
     assert all(slave.type == "credit" for slave in result["slaves"])
@@ -435,7 +448,7 @@ def test_loan_processor_amount_mismatch_capital_absorbs_difference(
 
     # Processor succeeds - capital absorbs the difference
     assert result["success"] is True
-    assert len(result["slaves"]) == 2
+    assert len(result["slaves"]) == 3  # principal + interest + insurance
 
     # Total should equal actual transaction amount
     total = sum(s.amount for s in result["slaves"])
@@ -463,7 +476,7 @@ def test_loan_processor_exact_amount_no_unknown_slave(
     result = loan_processor.process(loan_transaction, config)
 
     assert result["success"] is True
-    assert len(result["slaves"]) == 2  # Only principal + interest
+    assert len(result["slaves"]) == 3  # principal + interest + insurance
 
     # Verify no slave goes to Unknown account
     unknown_account_id = loan_transaction.TransactionsSlaves[0].accountId
@@ -557,11 +570,12 @@ def test_small_amount_difference_absorbed_by_capital(
     """Test that small differences are absorbed by capital component."""
     config = LoanConfig(**valid_loan_config)
 
-    # Calculate exact theoretical amount
+    # Calculate exact theoretical amount (principal+interest + insurance)
     theoretical = round(
         calculate_monthly_payment(
             config.loan_amount, config.annual_rate, config.duration_months
-        ),
+        )
+        + config.insurance_amount,
         2,
     )
 
@@ -573,7 +587,7 @@ def test_small_amount_difference_absorbed_by_capital(
 
     # Should succeed - capital absorbs the difference
     assert result["success"] is True
-    assert len(result["slaves"]) == 2
+    assert len(result["slaves"]) == 3  # principal + interest + insurance
 
 
 # =============================================================================

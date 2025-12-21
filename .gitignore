@@ -1,8 +1,10 @@
 .env
+.env.local
 __pycache__/
 *.py[cod]
 *$py.class
 .vscode/*
+!.vscode/tasks.json
 back/.vscode/*
 .DS_Store
 
