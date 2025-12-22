@@ -77,6 +77,15 @@ erDiagram
         text error_message
     }
 
+    Budget {
+        uuid id PK
+        uuid accountId FK
+        int year
+        decimal annual_budget
+        timestamp created_at
+        timestamp updated_at
+    }
+
     %% Relations entre les tables
     Accounts ||--o{ Transactions : "has"
     Accounts ||--o{ TransactionsSlaves : "has"
@@ -86,6 +95,7 @@ erDiagram
     Transactions ||--o{ RejectedTransferPairs : "rejected_transfer_2"
     CategorizationRules ||--o{ RuleApplications : "applied_to"
     Transactions ||--o{ RuleApplications : "has_rule_applied"
+    Accounts ||--o{ Budget : "has"
 ```
 
 ## Description des Tables
@@ -154,3 +164,14 @@ Table des logs d'application des règles de catégorisation.
 - **slaves_created**: JSON array des IDs des slaves créées
 - **success**: Indique si l'application a réussi
 - **error_message**: Message d'erreur en cas d'échec
+
+### Budget
+Table des budgets annuels par compte.
+- **id**: Identifiant unique du budget
+- **accountId**: Référence vers le compte
+- **year**: Année du budget
+- **annual_budget**: Montant du budget annuel (doit être >= 0)
+- **created_at**: Date de création
+- **updated_at**: Date de mise à jour
+
+Contrainte d'unicité sur (accountId, year) : un seul budget par compte et par année.
