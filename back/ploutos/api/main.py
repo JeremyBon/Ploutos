@@ -1,6 +1,7 @@
 import uvicorn
 from ploutos.api.routers import (
     accounts,
+    budget,
     categorization_rules,
     matching,
     test,
@@ -35,6 +36,7 @@ app.include_router(transactions.router, tags=["transactions"])
 app.include_router(transfers.router, tags=["transfers"])
 app.include_router(matching.router, tags=["matching"])
 app.include_router(categorization_rules.router, tags=["categorization-rules"])
+app.include_router(budget.router, tags=["budget"])
 
 
 @app.get("/")
