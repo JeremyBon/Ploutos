@@ -1,12 +1,31 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ploutos.api.deps import SessionDep
+from ploutos.utils.date import calculate_percent_year_elapsed
 
 router = APIRouter()
+
+POSITION_TOLERANCE = 5.0
+
+
+def _determine_position_indicator(
+    percent_ytd: float, percent_year_elapsed: float
+) -> Literal["ahead", "behind", "on_track"]:
+    """Determine if spending is ahead, behind, or on track compared to elapsed time."""
+    if percent_ytd < percent_year_elapsed - POSITION_TOLERANCE:
+        return "ahead"
+    if percent_ytd > percent_year_elapsed + POSITION_TOLERANCE:
+        return "behind"
+    return "on_track"
+
+
+def _calculate_percent(spent: float, budget: float) -> float:
+    """Calculate percentage of budget spent."""
+    return round((spent / budget) * 100, 1) if budget > 0 else 0.0
 
 
 class BudgetResponse(BaseModel):
@@ -15,6 +34,21 @@ class BudgetResponse(BaseModel):
     year: int
     annual_budget: Optional[float]
     monthly_budget: Optional[float]
+
+
+class BudgetConsumptionResponse(BaseModel):
+    account_id: str
+    account_name: str
+    annual_budget: float
+    monthly_budget: float
+    spent_month: float
+    remaining_month: float
+    percent_month: float
+    spent_ytd: float
+    remaining_ytd: float
+    percent_ytd: float
+    percent_year_elapsed: float
+    position_indicator: Literal["ahead", "behind", "on_track"]
 
 
 class BudgetUpsert(BaseModel):
@@ -99,3 +133,41 @@ async def upsert_budget(budget: BudgetUpsert, db: SessionDep):
     )
 
     return response.data[0]
+
+
+@router.get(
+    "/budget/{year}/consumption", response_model=list[BudgetConsumptionResponse]
+)
+async def get_budget_consumption(year: int, db: SessionDep):
+    """Get budget consumption status for a given year.
+
+    Calculates spending from TransactionsSlaves for each virtual account
+    with a defined budget.
+
+    Returns spending statistics for the current month and year-to-date,
+    along with a position indicator (ahead/behind/on_track).
+    """
+    pct_year = calculate_percent_year_elapsed(year)
+
+    response = db.rpc(
+        "get_budget_consumption",
+        {"p_year": year, "p_current_month": datetime.now().month},
+    ).execute()
+
+    return [
+        BudgetConsumptionResponse(
+            account_id=row["accountId"],
+            account_name=row["account_name"],
+            annual_budget=(annual := row["annual_budget"]),
+            monthly_budget=(monthly := round(annual / 12, 2)),
+            spent_month=(spent_m := round(row["spending_month"] or 0, 2)),
+            remaining_month=round(monthly - spent_m, 2),
+            percent_month=_calculate_percent(spent_m, monthly),
+            spent_ytd=(spent_y := round(row["spending_ytd"] or 0, 2)),
+            remaining_ytd=round(annual - spent_y, 2),
+            percent_ytd=(pct_y := _calculate_percent(spent_y, annual)),
+            percent_year_elapsed=pct_year,
+            position_indicator=_determine_position_indicator(pct_y, pct_year),
+        )
+        for row in response.data
+    ]
