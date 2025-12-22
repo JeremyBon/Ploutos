@@ -6,6 +6,7 @@ import pytest
 
 from ploutos.api.routers.budget import (
     _calculate_percent,
+    _calculate_percent_change,
     _determine_position_indicator,
 )
 
@@ -587,3 +588,153 @@ def test_get_budget_consumption_empty(test_client, mock_db, mock_supabase_respon
     # Assert
     assert response.status_code == 200
     assert response.json() == []
+
+
+# =============================================================================
+# Tests pour _calculate_percent_change
+# =============================================================================
+
+
+class TestCalculatePercentChange:
+    """Tests pour _calculate_percent_change."""
+
+    def test_positive_change(self):
+        """Calcule une augmentation positive."""
+        result = _calculate_percent_change(320.0, 280.0)
+        assert result == 14.3
+
+    def test_negative_change(self):
+        """Calcule une diminution."""
+        result = _calculate_percent_change(200.0, 400.0)
+        assert result == -50.0
+
+    def test_zero_previous_returns_none(self):
+        """Retourne None si l'année précédente est 0."""
+        result = _calculate_percent_change(100.0, 0.0)
+        assert result is None
+
+    def test_no_change(self):
+        """Retourne 0 si pas de changement."""
+        result = _calculate_percent_change(300.0, 300.0)
+        assert result == 0.0
+
+
+# =============================================================================
+# Tests pour GET /budget-comparison/{year}/{month}
+# =============================================================================
+
+
+def test_get_budget_comparison_returns_comparison(
+    test_client, mock_db, mock_supabase_response
+):
+    """Retourne la comparaison des dépenses entre deux années."""
+    # Arrange
+    rpc_data = [
+        {
+            "accountId": "11111111-1111-1111-1111-111111111111",
+            "account_name": "Alimentation",
+            "spent_current": 320.0,
+            "spent_previous": 280.0,
+        },
+        {
+            "accountId": "22222222-2222-2222-2222-222222222222",
+            "account_name": "Transport",
+            "spent_current": 150.0,
+            "spent_previous": 200.0,
+        },
+    ]
+
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
+
+    # Act
+    response = test_client.get("/budget-comparison/2025/6")
+
+    # Assert
+    assert response.status_code == 200
+    comparison = response.json()
+    assert len(comparison) == 2
+
+    assert comparison[0]["account_id"] == "11111111-1111-1111-1111-111111111111"
+    assert comparison[0]["account_name"] == "Alimentation"
+    assert comparison[0]["spent_current"] == 320.0
+    assert comparison[0]["spent_previous"] == 280.0
+    assert comparison[0]["difference"] == 40.0
+    assert comparison[0]["percent_change"] == 14.3
+
+    assert comparison[1]["account_id"] == "22222222-2222-2222-2222-222222222222"
+    assert comparison[1]["difference"] == -50.0
+    assert comparison[1]["percent_change"] == -25.0
+
+
+def test_get_budget_comparison_with_zero_previous(
+    test_client, mock_db, mock_supabase_response
+):
+    """percent_change est null si pas de dépenses l'année précédente."""
+    # Arrange
+    rpc_data = [
+        {
+            "accountId": "11111111-1111-1111-1111-111111111111",
+            "account_name": "Alimentation",
+            "spent_current": 320.0,
+            "spent_previous": 0.0,
+        },
+    ]
+
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
+
+    # Act
+    response = test_client.get("/budget-comparison/2025/6")
+
+    # Assert
+    assert response.status_code == 200
+    comparison = response.json()
+    assert comparison[0]["percent_change"] is None
+    assert comparison[0]["difference"] == 320.0
+
+
+def test_get_budget_comparison_empty(test_client, mock_db, mock_supabase_response):
+    """Retourne une liste vide si aucune donnée."""
+    # Arrange
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response([])
+    mock_db.rpc.return_value = mock_rpc
+
+    # Act
+    response = test_client.get("/budget-comparison/2025/6")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_budget_comparison_handles_null_values(
+    test_client, mock_db, mock_supabase_response
+):
+    """Gère les valeurs null retournées par la base."""
+    # Arrange
+    rpc_data = [
+        {
+            "accountId": "11111111-1111-1111-1111-111111111111",
+            "account_name": "Alimentation",
+            "spent_current": None,
+            "spent_previous": 280.0,
+        },
+    ]
+
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
+
+    # Act
+    response = test_client.get("/budget-comparison/2025/6")
+
+    # Assert
+    assert response.status_code == 200
+    comparison = response.json()
+    assert comparison[0]["spent_current"] == 0.0
+    assert comparison[0]["spent_previous"] == 280.0
+    assert comparison[0]["difference"] == -280.0

@@ -12,20 +12,9 @@ router = APIRouter()
 POSITION_TOLERANCE = 5.0
 
 
-def _determine_position_indicator(
-    percent_ytd: float, percent_year_elapsed: float
-) -> Literal["ahead", "behind", "on_track"]:
-    """Determine if spending is ahead, behind, or on track compared to elapsed time."""
-    if percent_ytd < percent_year_elapsed - POSITION_TOLERANCE:
-        return "ahead"
-    if percent_ytd > percent_year_elapsed + POSITION_TOLERANCE:
-        return "behind"
-    return "on_track"
-
-
-def _calculate_percent(spent: float, budget: float) -> float:
-    """Calculate percentage of budget spent."""
-    return round((spent / budget) * 100, 1) if budget > 0 else 0.0
+# ============================================================================
+# Models
+# ============================================================================
 
 
 class BudgetResponse(BaseModel):
@@ -55,6 +44,20 @@ class BudgetUpsert(BaseModel):
     account_id: str
     year: int
     annual_budget: float = Field(..., ge=0)
+
+
+class BudgetComparisonResponse(BaseModel):
+    account_id: str
+    account_name: str
+    spent_current: float
+    spent_previous: float
+    difference: float
+    percent_change: Optional[float]
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
 
 
 @router.get("/budget/{year}", response_model=list[BudgetResponse])
@@ -171,3 +174,59 @@ async def get_budget_consumption(year: int, db: SessionDep):
         )
         for row in response.data
     ]
+
+
+@router.get(
+    "/budget-comparison/{year}/{month}",
+    response_model=list[BudgetComparisonResponse],
+)
+async def get_budget_comparison(year: int, month: int, db: SessionDep):
+    """Compare spending between the same month in current year and previous year.
+
+    Returns spending comparison for each virtual account that has spending
+    in either year.
+    """
+    response = db.rpc(
+        "get_budget_comparison",
+        {"p_year": year, "p_month": month},
+    ).execute()
+
+    return [
+        BudgetComparisonResponse(
+            account_id=row["accountId"],
+            account_name=row["account_name"],
+            spent_current=(current := round(row["spent_current"] or 0, 2)),
+            spent_previous=(previous := round(row["spent_previous"] or 0, 2)),
+            difference=round(current - previous, 2),
+            percent_change=_calculate_percent_change(current, previous),
+        )
+        for row in response.data
+    ]
+
+
+# ============================================================================
+# Utils
+# ============================================================================
+
+
+def _determine_position_indicator(
+    percent_ytd: float, percent_year_elapsed: float
+) -> Literal["ahead", "behind", "on_track"]:
+    """Determine if spending is ahead, behind, or on track compared to elapsed time."""
+    if percent_ytd < percent_year_elapsed - POSITION_TOLERANCE:
+        return "ahead"
+    if percent_ytd > percent_year_elapsed + POSITION_TOLERANCE:
+        return "behind"
+    return "on_track"
+
+
+def _calculate_percent(spent: float, budget: float) -> float:
+    """Calculate percentage of budget spent."""
+    return round((spent / budget) * 100, 1) if budget > 0 else 0.0
+
+
+def _calculate_percent_change(current: float, previous: float) -> Optional[float]:
+    """Calculate percent change from previous to current."""
+    if previous == 0:
+        return None
+    return round(((current - previous) / previous) * 100, 1)

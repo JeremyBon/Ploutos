@@ -104,7 +104,9 @@ cd front && npm run dev
 
 ### Backend
 ```bash
-cd back && poetry run pytest
+cd back && poetry run pytest                              # Tests
+cd back && poetry run pytest --cov=ploutos                # Avec couverture
+cd back && poetry run pytest --cov=ploutos --cov-report=term-missing  # Couverture détaillée
 ```
 
 ### Frontend
