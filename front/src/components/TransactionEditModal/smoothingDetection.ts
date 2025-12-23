@@ -140,3 +140,34 @@ export function detectSmoothingGroups(
 
   return result;
 }
+
+/**
+ * Returns the smoothing groups as arrays of slaves.
+ * Each group contains slaves that form a smoothing pattern (same account, consecutive months, similar amounts).
+ */
+export function getSmoothingGroupsArray(
+  slaves: TransactionSlave[]
+): TransactionSlave[][] {
+  const result: TransactionSlave[][] = [];
+
+  // Group by accountId
+  const groups = new Map<string, TransactionSlave[]>();
+  for (const slave of slaves) {
+    const existing = groups.get(slave.accountId) || [];
+    existing.push(slave);
+    groups.set(slave.accountId, existing);
+  }
+
+  // Check each group and collect smoothing groups
+  for (const [, groupSlaves] of groups) {
+    if (isSmoothingGroup(groupSlaves)) {
+      // Sort by date
+      const sorted = [...groupSlaves].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      result.push(sorted);
+    }
+  }
+
+  return result;
+}

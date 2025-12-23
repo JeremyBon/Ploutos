@@ -12,9 +12,13 @@ import {
   validateSlaves,
   findAccountById,
 } from "./utils";
-import { detectSmoothingGroups } from "./smoothingDetection";
+import {
+  detectSmoothingGroups,
+  getSmoothingGroupsArray,
+} from "./smoothingDetection";
 import SlaveTransactionRow from "./SlaveTransactionRow";
 import SmoothingModal from "./SmoothingModal";
+import UnsmoothingModal from "./UnsmoothingModal";
 
 export default function TransactionEditModal({
   isOpen,
@@ -47,6 +51,9 @@ export default function TransactionEditModal({
   const [smoothingSlaveIndex, setSmoothingSlaveIndex] = useState<number | null>(
     null
   );
+  const [unsmoothingGroup, setUnsmoothingGroup] = useState<
+    TransactionSlave[] | null
+  >(null);
 
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -219,6 +226,62 @@ export default function TransactionEditModal({
     setSmoothingSlaveIndex(null);
   };
 
+  // Handle unsmooth button click - opens unsmoothing modal
+  const handleUnsmooth = (group: TransactionSlave[]) => {
+    setUnsmoothingGroup(group);
+  };
+
+  // Handle unsmoothing modal close
+  const handleUnsmoothingClose = () => {
+    setUnsmoothingGroup(null);
+  };
+
+  // Handle unsmoothing confirmation - merge group into single slave
+  const handleUnsmoothingConfirm = () => {
+    if (!unsmoothingGroup || unsmoothingGroup.length === 0) return;
+
+    // Sort by date to get the first slave
+    const sortedGroup = [...unsmoothingGroup].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const firstSlave = sortedGroup[0];
+    const totalAmount = sortedGroup.reduce((sum, s) => sum + s.amount, 0);
+
+    // Create the merged slave (keep first slave's properties, update amount)
+    const mergedSlave: TransactionSlave = {
+      ...firstSlave,
+      amount: Math.round(totalAmount * 100) / 100,
+    };
+
+    // Get all slaveIds to remove (except the first one which we're keeping)
+    const slaveIdsToRemove = new Set(
+      sortedGroup.slice(1).map((s) => s.slaveId)
+    );
+
+    // Update editSlaves: remove all slaves in group except first, update first with total amount
+    setEditSlaves((prevSlaves) =>
+      prevSlaves
+        .filter((slave) => !slaveIdsToRemove.has(slave.slaveId))
+        .map((slave) =>
+          slave.slaveId === firstSlave.slaveId ? mergedSlave : slave
+        )
+    );
+
+    // Clean up filters for removed slaves
+    setSlaveCategoryFilters((prev) => {
+      const newFilters = { ...prev };
+      slaveIdsToRemove.forEach((id) => delete newFilters[id]);
+      return newFilters;
+    });
+    setSlaveAccountTypes((prev) => {
+      const newTypes = { ...prev };
+      slaveIdsToRemove.forEach((id) => delete newTypes[id]);
+      return newTypes;
+    });
+
+    setUnsmoothingGroup(null);
+  };
+
   // Check if form has been modified
   const isEditFormDirty = useMemo(() => {
     if (editForm.description !== originalEditForm.description) return true;
@@ -246,6 +309,12 @@ export default function TransactionEditModal({
   // Detect smoothing groups among slaves
   const smoothingInfoMap = useMemo(
     () => detectSmoothingGroups(editSlaves),
+    [editSlaves]
+  );
+
+  // Get smoothing groups as arrays (for unsmoothing)
+  const smoothingGroups = useMemo(
+    () => getSmoothingGroupsArray(editSlaves),
     [editSlaves]
   );
 
@@ -497,6 +566,17 @@ export default function TransactionEditModal({
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    {smoothingGroups.length > 0 && (
+                      <button
+                        onClick={() => handleUnsmooth(smoothingGroups[0])}
+                        className="px-3 py-1 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                        disabled={isSaving}
+                        aria-label="Annuler le lissage"
+                        title={`Fusionner ${smoothingGroups[0].length} transactions en 1`}
+                      >
+                        Annuler lissage
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         // Find first credit slave that is not part of a smoothing group
@@ -673,6 +753,17 @@ export default function TransactionEditModal({
           slave={editSlaves[smoothingSlaveIndex]}
           onClose={handleSmoothingClose}
           onConfirm={handleSmoothingConfirm}
+        />
+      )}
+
+      {/* Unsmoothing Modal */}
+      {unsmoothingGroup && (
+        <UnsmoothingModal
+          isOpen={unsmoothingGroup !== null}
+          slaves={unsmoothingGroup}
+          totalAmount={unsmoothingGroup.reduce((sum, s) => sum + s.amount, 0)}
+          onClose={handleUnsmoothingClose}
+          onConfirm={handleUnsmoothingConfirm}
         />
       )}
     </div>
