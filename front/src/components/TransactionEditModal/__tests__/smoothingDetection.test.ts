@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { detectSmoothingGroups } from "../smoothingDetection";
+import {
+  detectSmoothingGroups,
+  getSmoothingGroupsArray,
+} from "../smoothingDetection";
 import { TransactionSlave } from "../types";
 
 // Helper to create a slave with default values
@@ -217,6 +220,78 @@ describe("smoothingDetection", () => {
       ];
       const result = detectSmoothingGroups(slaves);
       expect(result.size).toBe(2);
+    });
+  });
+
+  describe("getSmoothingGroupsArray", () => {
+    it("should return empty array for empty input", () => {
+      const result = getSmoothingGroupsArray([]);
+      expect(result).toEqual([]);
+    });
+
+    it("should return empty array when no smoothing groups exist", () => {
+      const slaves = [createSlave({ slaveId: "s1", date: "2025-01-15" })];
+      const result = getSmoothingGroupsArray(slaves);
+      expect(result).toEqual([]);
+    });
+
+    it("should return array with one group for simple smoothing", () => {
+      const slaves = [
+        createSlave({ slaveId: "s1", date: "2025-01-15", amount: 50 }),
+        createSlave({ slaveId: "s2", date: "2025-02-01", amount: 50 }),
+      ];
+      const result = getSmoothingGroupsArray(slaves);
+      expect(result.length).toBe(1);
+      expect(result[0].length).toBe(2);
+      // Should be sorted by date
+      expect(result[0][0].slaveId).toBe("s1");
+      expect(result[0][1].slaveId).toBe("s2");
+    });
+
+    it("should return multiple groups for different accounts", () => {
+      const slaves = [
+        createSlave({
+          slaveId: "s1",
+          date: "2025-01-15",
+          amount: 50,
+          accountId: "acc-1",
+        }),
+        createSlave({
+          slaveId: "s2",
+          date: "2025-02-01",
+          amount: 50,
+          accountId: "acc-1",
+        }),
+        createSlave({
+          slaveId: "s3",
+          date: "2025-01-15",
+          amount: 30,
+          accountId: "acc-2",
+        }),
+        createSlave({
+          slaveId: "s4",
+          date: "2025-02-01",
+          amount: 30,
+          accountId: "acc-2",
+        }),
+      ];
+      const result = getSmoothingGroupsArray(slaves);
+      expect(result.length).toBe(2);
+      expect(result[0].length).toBe(2);
+      expect(result[1].length).toBe(2);
+    });
+
+    it("should return groups sorted by date", () => {
+      const slaves = [
+        createSlave({ slaveId: "s3", date: "2025-03-01", amount: 50 }),
+        createSlave({ slaveId: "s1", date: "2025-01-15", amount: 50 }),
+        createSlave({ slaveId: "s2", date: "2025-02-01", amount: 50 }),
+      ];
+      const result = getSmoothingGroupsArray(slaves);
+      expect(result.length).toBe(1);
+      expect(result[0][0].slaveId).toBe("s1");
+      expect(result[0][1].slaveId).toBe("s2");
+      expect(result[0][2].slaveId).toBe("s3");
     });
   });
 });
