@@ -89,7 +89,7 @@ Utilise les **Tasks VS Code** pour lancer les services :
 cd supabase && supabase start
 
 # Terminal 2 - Backend
-cd back && poetry run uvicorn ploutos.main:app --reload
+cd back && poetry run uvicorn ploutos.api.main:app --reload --port 8080
 
 # Terminal 3 - Frontend
 cd front && npm run dev
@@ -98,7 +98,7 @@ cd front && npm run dev
 ### URLs
 
 - Frontend : http://localhost:3000
-- API docs : http://localhost:8000/docs
+- API docs : http://localhost:8080/docs
 
 ## Tests
 

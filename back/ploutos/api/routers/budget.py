@@ -20,6 +20,7 @@ POSITION_TOLERANCE = 5.0
 class BudgetResponse(BaseModel):
     account_id: str
     account_name: str
+    category: str
     year: int
     annual_budget: Optional[float]
     monthly_budget: Optional[float]
@@ -28,16 +29,17 @@ class BudgetResponse(BaseModel):
 class BudgetConsumptionResponse(BaseModel):
     account_id: str
     account_name: str
-    annual_budget: float
-    monthly_budget: float
+    category: str
+    annual_budget: Optional[float]
+    monthly_budget: Optional[float]
     spent_month: float
-    remaining_month: float
-    percent_month: float
+    remaining_month: Optional[float]
+    percent_month: Optional[float]
     spent_ytd: float
-    remaining_ytd: float
-    percent_ytd: float
+    remaining_ytd: Optional[float]
+    percent_ytd: Optional[float]
     percent_year_elapsed: float
-    position_indicator: Literal["ahead", "behind", "on_track"]
+    position_indicator: Optional[Literal["ahead", "behind", "on_track"]]
 
 
 class BudgetUpsert(BaseModel):
@@ -49,6 +51,7 @@ class BudgetUpsert(BaseModel):
 class BudgetComparisonResponse(BaseModel):
     account_id: str
     account_name: str
+    category: str
     spent_current: float
     spent_previous: float
     difference: float
@@ -70,7 +73,7 @@ async def get_budgets_by_year(year: int, db: SessionDep):
     """
     response = (
         db.table("Accounts")
-        .select("accountId, name, Budget(annual_budget)")
+        .select("accountId, name, category, Budget(annual_budget)")
         .eq("is_real", False)
         .eq("active", True)
         .eq("Budget.year", year)
@@ -81,6 +84,7 @@ async def get_budgets_by_year(year: int, db: SessionDep):
         BudgetResponse(
             account_id=row["accountId"],
             account_name=row["name"],
+            category=row["category"],
             year=year,
             annual_budget=(
                 row["Budget"][0]["annual_budget"] if row["Budget"] else None
@@ -157,23 +161,46 @@ async def get_budget_consumption(year: int, db: SessionDep):
         {"p_year": year, "p_current_month": datetime.now().month},
     ).execute()
 
-    return [
-        BudgetConsumptionResponse(
-            account_id=row["accountId"],
-            account_name=row["account_name"],
-            annual_budget=(annual := row["annual_budget"]),
-            monthly_budget=(monthly := round(annual / 12, 2)),
-            spent_month=(spent_m := round(row["spending_month"] or 0, 2)),
-            remaining_month=round(monthly - spent_m, 2),
-            percent_month=_calculate_percent(spent_m, monthly),
-            spent_ytd=(spent_y := round(row["spending_ytd"] or 0, 2)),
-            remaining_ytd=round(annual - spent_y, 2),
-            percent_ytd=(pct_y := _calculate_percent(spent_y, annual)),
-            percent_year_elapsed=pct_year,
-            position_indicator=_determine_position_indicator(pct_y, pct_year),
+    results = []
+    for row in response.data:
+        annual = row["annual_budget"]
+        spent_m = round(row["spending_month"] or 0, 2)
+        spent_y = round(row["spending_ytd"] or 0, 2)
+
+        # Calculs conditionnels selon présence du budget
+        if annual is not None:
+            monthly = round(annual / 12, 2)
+            remaining_month = round(monthly - spent_m, 2)
+            percent_month = _calculate_percent(spent_m, monthly)
+            remaining_ytd = round(annual - spent_y, 2)
+            pct_y = _calculate_percent(spent_y, annual)
+            position = _determine_position_indicator(pct_y, pct_year)
+        else:
+            monthly = None
+            remaining_month = None
+            percent_month = None
+            remaining_ytd = None
+            pct_y = None
+            position = None
+
+        results.append(
+            BudgetConsumptionResponse(
+                account_id=row["accountId"],
+                account_name=row["account_name"],
+                category=row["category"],
+                annual_budget=annual,
+                monthly_budget=monthly,
+                spent_month=spent_m,
+                remaining_month=remaining_month,
+                percent_month=percent_month,
+                spent_ytd=spent_y,
+                remaining_ytd=remaining_ytd,
+                percent_ytd=pct_y,
+                percent_year_elapsed=pct_year,
+                position_indicator=position,
+            )
         )
-        for row in response.data
-    ]
+    return results
 
 
 @router.get(
@@ -195,6 +222,7 @@ async def get_budget_comparison(year: int, month: int, db: SessionDep):
         BudgetComparisonResponse(
             account_id=row["accountId"],
             account_name=row["account_name"],
+            category=row["category"],
             spent_current=(current := round(row["spent_current"] or 0, 2)),
             spent_previous=(previous := round(row["spent_previous"] or 0, 2)),
             difference=round(current - previous, 2),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -27,32 +27,26 @@ ChartJS.register(
 );
 
 // Types
-interface BudgetData {
-  account_id: string;
-  account_name: string;
-  year: number;
-  annual_budget: number | null;
-  monthly_budget: number | null;
-}
-
 interface BudgetConsumption {
   account_id: string;
   account_name: string;
-  annual_budget: number;
-  monthly_budget: number;
+  category: string;
+  annual_budget: number | null;
+  monthly_budget: number | null;
   spent_month: number;
-  remaining_month: number;
-  percent_month: number;
+  remaining_month: number | null;
+  percent_month: number | null;
   spent_ytd: number;
-  remaining_ytd: number;
-  percent_ytd: number;
+  remaining_ytd: number | null;
+  percent_ytd: number | null;
   percent_year_elapsed: number;
-  position_indicator: "ahead" | "behind" | "on_track";
+  position_indicator: "ahead" | "behind" | "on_track" | null;
 }
 
 interface BudgetComparison {
   account_id: string;
   account_name: string;
+  category: string;
   spent_current: number;
   spent_previous: number;
   difference: number;
@@ -62,6 +56,7 @@ interface BudgetComparison {
 interface BudgetTableRow {
   account_id: string;
   account_name: string;
+  category: string;
   monthly_budget: number | null;
   spent: number;
   remaining: number | null;
@@ -111,7 +106,6 @@ export default function Budget() {
   const [selectedMonth, setSelectedMonth] = useState<number>(
     new Date().getMonth() + 1
   );
-  const [budgetData, setBudgetData] = useState<BudgetData[]>([]);
   const [consumptionData, setConsumptionData] = useState<BudgetConsumption[]>(
     []
   );
@@ -127,37 +121,37 @@ export default function Budget() {
   const [allAccounts, setAllAccounts] = useState<VirtualAccount[]>([]);
   const [loadingSankey, setLoadingSankey] = useState(false);
 
+  // Expanded categories state (empty by default = all collapsed)
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set()
+  );
+
   // Inline editing state
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [savingAccountId, setSavingAccountId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  // Fetch budget and consumption data
+  // Fetch consumption and comparison data
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [budgetRes, consumptionRes, comparisonRes] = await Promise.all([
-        fetch(`${API_URL}/budget/${selectedYear}`),
+      const [consumptionRes, comparisonRes] = await Promise.all([
         fetch(`${API_URL}/budget/${selectedYear}/consumption`),
         fetch(`${API_URL}/budget-comparison/${selectedYear}/${selectedMonth}`),
       ]);
 
-      if (!budgetRes.ok || !consumptionRes.ok) {
+      if (!consumptionRes.ok) {
         throw new Error("Erreur lors du chargement des données");
       }
 
-      const [budgets, consumption] = await Promise.all([
-        budgetRes.json(),
-        consumptionRes.json(),
-      ]);
+      const consumption = await consumptionRes.json();
 
       // Comparison data is optional - don't fail if not available
       const comparison = comparisonRes.ok ? await comparisonRes.json() : [];
 
-      setBudgetData(budgets);
       setConsumptionData(consumption);
       setComparisonData(comparison);
     } catch (err) {
@@ -270,54 +264,45 @@ export default function Budget() {
     }
   };
 
+  // Toggle category expand/collapse
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  };
+
   // Get comparison data for an account
   const getComparison = (accountId: string): BudgetComparison | undefined => {
     return comparisonData.find((c) => c.account_id === accountId);
   };
 
-  // Build table rows combining budget, consumption and comparison data
+  // Build table rows combining consumption and comparison data
+  // consumptionData now includes ALL accounts (with or without budget)
   // Sort by spent descending for accounts without budget, by % consumed for accounts with budget
-  const tableRows: BudgetTableRow[] = budgetData
-    .map((budget) => {
-      const consumption = consumptionData.find(
-        (c) => c.account_id === budget.account_id
-      );
-      const comparison = getComparison(budget.account_id);
+  const tableRows: BudgetTableRow[] = consumptionData
+    .map((consumption) => {
+      const comparison = getComparison(consumption.account_id);
 
-      // Use consumption data if available (account has budget)
-      if (consumption) {
-        return {
-          account_id: budget.account_id,
-          account_name: budget.account_name,
-          monthly_budget: consumption.monthly_budget,
-          spent: consumption.spent_month,
-          remaining: consumption.remaining_month,
-          percent: consumption.percent_month,
-          annual_budget: consumption.annual_budget,
-          spent_ytd: consumption.spent_ytd,
-          ecart_ytd: consumption.remaining_ytd,
-          percent_ytd: consumption.percent_ytd,
-          percent_year_elapsed: consumption.percent_year_elapsed,
-          position_indicator: consumption.position_indicator,
-          variation_vs_n1: comparison?.percent_change ?? null,
-        };
-      }
-
-      // No budget defined - use comparison data for spending
-      const spent = comparison?.spent_current ?? 0;
       return {
-        account_id: budget.account_id,
-        account_name: budget.account_name,
-        monthly_budget: null,
-        spent: spent,
-        remaining: null,
-        percent: null,
-        annual_budget: null,
-        spent_ytd: spent, // Use current month as approximation
-        ecart_ytd: null,
-        percent_ytd: null,
-        percent_year_elapsed: null,
-        position_indicator: null,
+        account_id: consumption.account_id,
+        account_name: consumption.account_name,
+        category: consumption.category,
+        monthly_budget: consumption.monthly_budget,
+        spent: consumption.spent_month,
+        remaining: consumption.remaining_month,
+        percent: consumption.percent_month,
+        annual_budget: consumption.annual_budget,
+        spent_ytd: consumption.spent_ytd,
+        ecart_ytd: consumption.remaining_ytd,
+        percent_ytd: consumption.percent_ytd,
+        percent_year_elapsed: consumption.percent_year_elapsed,
+        position_indicator: consumption.position_indicator,
         variation_vs_n1: comparison?.percent_change ?? null,
       };
     })
@@ -339,6 +324,54 @@ export default function Budget() {
       // Finally: accounts with no spending, sorted alphabetically
       return a.account_name.localeCompare(b.account_name);
     });
+
+  // Group rows by category with totals
+  const groupedRows = useMemo(() => {
+    const groups = tableRows.reduce(
+      (acc, row) => {
+        const cat = row.category;
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(row);
+        return acc;
+      },
+      {} as Record<string, BudgetTableRow[]>
+    );
+
+    return Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, rows]) => ({
+        category,
+        rows: rows.sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0)),
+        totals: (() => {
+          const monthly_budget = rows.reduce(
+            (s, r) => s + (r.monthly_budget ?? 0),
+            0
+          );
+          const spent = rows.reduce((s, r) => s + r.spent, 0);
+          const remaining = rows.reduce((s, r) => s + (r.remaining ?? 0), 0);
+          const annual_budget = rows.reduce(
+            (s, r) => s + (r.annual_budget ?? 0),
+            0
+          );
+          const spent_ytd = rows.reduce((s, r) => s + r.spent_ytd, 0);
+          const ecart_ytd = rows.reduce((s, r) => s + (r.ecart_ytd ?? 0), 0);
+          const percent =
+            monthly_budget > 0 ? (spent / monthly_budget) * 100 : null;
+          const percent_ytd =
+            annual_budget > 0 ? (spent_ytd / annual_budget) * 100 : null;
+          return {
+            monthly_budget,
+            spent,
+            remaining,
+            annual_budget,
+            spent_ytd,
+            ecart_ytd,
+            percent,
+            percent_ytd,
+          };
+        })(),
+      }));
+  }, [tableRows]);
 
   // Chart data: only accounts with budget, sorted by % consumed descending
   const chartRows = useMemo(() => {
@@ -924,128 +957,209 @@ export default function Budget() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {tableRows.map((row) => {
-                  const hasBudget = row.monthly_budget !== null;
-                  const noBudgetStyle = !hasBudget
-                    ? "text-orange-500 italic"
-                    : "text-gray-700";
-
+                {groupedRows.map((group) => {
+                  const isExpanded = expandedCategories.has(group.category);
                   return (
-                    <tr
-                      key={row.account_id}
-                      className={`hover:bg-gray-50 transition-colors ${!hasBudget ? "bg-orange-50/30" : ""}`}
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {row.account_name}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right ${noBudgetStyle}`}
+                    <Fragment key={group.category}>
+                      {/* Category header row with totals */}
+                      <tr
+                        className="bg-blue-100 cursor-pointer hover:bg-blue-200 transition-colors"
+                        onClick={() => toggleCategory(group.category)}
                       >
-                        {editingAccountId === row.account_id ? (
-                          <input
-                            type="number"
-                            className="w-24 px-2 py-1 text-right border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => handleEditComplete(row.account_id)}
-                            onKeyDown={(e) => handleKeyDown(e, row.account_id)}
-                            autoFocus
-                            min="0"
-                            step="any"
-                          />
-                        ) : savingAccountId === row.account_id ? (
-                          <span className="inline-flex items-center gap-1">
+                        <td className="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900">
+                          <span className="inline-flex items-center gap-2">
                             <svg
-                              className="animate-spin h-4 w-4 text-blue-600"
                               xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
+                              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
                             >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
                               <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                fillRule="evenodd"
+                                d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                clipRule="evenodd"
                               />
                             </svg>
+                            {group.category}
                           </span>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              handleCellClick(
-                                row.account_id,
-                                row.monthly_budget
-                              )
-                            }
-                            className="cursor-pointer hover:bg-blue-50 hover:text-blue-700 px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
-                            title="Cliquer pour modifier"
-                          >
-                            {hasBudget ? formatAmount(row.monthly_budget) : "—"}
-                            {saveSuccess === row.account_id && (
-                              <svg
-                                className="h-4 w-4 text-green-500"
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-700">
+                          {formatAmount(group.totals.monthly_budget)}
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getPercentColor(group.totals.percent)}`}
+                        >
+                          {formatAmount(group.totals.spent)}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-xs text-right text-gray-500">
+                          —
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getRemainingColor(group.totals.remaining)}`}
+                        >
+                          {formatAmount(group.totals.remaining)}
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getPercentColor(group.totals.percent)}`}
+                        >
+                          {formatPercent(group.totals.percent)}
+                        </td>
+                        <td className="px-6 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-700 border-l border-gray-200">
+                          {formatAmount(group.totals.annual_budget)}
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getPercentColor(group.totals.percent_ytd)}`}
+                        >
+                          {formatAmount(group.totals.spent_ytd)}
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getEcartColor(group.totals.ecart_ytd)}`}
+                        >
+                          {formatAmount(group.totals.ecart_ytd)}
+                        </td>
+                        <td
+                          className={`px-6 py-3 whitespace-nowrap text-sm text-right font-semibold ${getPercentColor(group.totals.percent_ytd)}`}
+                        >
+                          {formatPercent(group.totals.percent_ytd)}
+                        </td>
+                      </tr>
+                      {/* Individual rows */}
+                      {isExpanded &&
+                        group.rows.map((row) => {
+                          const hasBudget = row.monthly_budget !== null;
+                          const noBudgetStyle = !hasBudget
+                            ? "text-orange-500 italic"
+                            : "text-gray-700";
+
+                          return (
+                            <tr
+                              key={row.account_id}
+                              className={`hover:bg-gray-50 transition-colors ${!hasBudget ? "bg-orange-50/30" : ""}`}
+                            >
+                              <td className="px-6 py-4 pl-10 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {row.account_name}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right ${noBudgetStyle}`}
                               >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            )}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
-                        {formatAmount(row.spent)}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-xs text-right ${getVariationColor(row.variation_vs_n1)}`}
-                      >
-                        {formatVariation(row.variation_vs_n1)}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getRemainingColor(row.remaining)}`}
-                      >
-                        {hasBudget ? formatAmount(row.remaining) : "—"}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getPercentColor(row.percent)}`}
-                      >
-                        {hasBudget ? formatPercent(row.percent) : "—"}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right border-l border-gray-200 ${noBudgetStyle}`}
-                      >
-                        {hasBudget ? formatAmount(row.annual_budget) : "—"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
-                        {formatAmount(row.spent_ytd)}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getEcartColor(row.ecart_ytd)}`}
-                      >
-                        {hasBudget ? formatAmount(row.ecart_ytd) : "—"}
-                      </td>
-                      <td
-                        className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : ""}`}
-                      >
-                        {formatYearPosition(
-                          row.percent_ytd,
-                          row.percent_year_elapsed,
-                          row.position_indicator
-                        )}
-                      </td>
-                    </tr>
+                                {editingAccountId === row.account_id ? (
+                                  <input
+                                    type="number"
+                                    className="w-24 px-2 py-1 text-right border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={editValue}
+                                    onChange={(e) =>
+                                      setEditValue(e.target.value)
+                                    }
+                                    onBlur={() =>
+                                      handleEditComplete(row.account_id)
+                                    }
+                                    onKeyDown={(e) =>
+                                      handleKeyDown(e, row.account_id)
+                                    }
+                                    autoFocus
+                                    min="0"
+                                    step="any"
+                                  />
+                                ) : savingAccountId === row.account_id ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <svg
+                                      className="animate-spin h-4 w-4 text-blue-600"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                      />
+                                      <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                      />
+                                    </svg>
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      handleCellClick(
+                                        row.account_id,
+                                        row.monthly_budget
+                                      )
+                                    }
+                                    className="cursor-pointer hover:bg-blue-50 hover:text-blue-700 px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
+                                    title="Cliquer pour modifier"
+                                  >
+                                    {hasBudget
+                                      ? formatAmount(row.monthly_budget)
+                                      : "—"}
+                                    {saveSuccess === row.account_id && (
+                                      <svg
+                                        className="h-4 w-4 text-green-500"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    )}
+                                  </button>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
+                                {formatAmount(row.spent)}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-xs text-right ${getVariationColor(row.variation_vs_n1)}`}
+                              >
+                                {formatVariation(row.variation_vs_n1)}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getRemainingColor(row.remaining)}`}
+                              >
+                                {hasBudget ? formatAmount(row.remaining) : "—"}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getPercentColor(row.percent)}`}
+                              >
+                                {hasBudget ? formatPercent(row.percent) : "—"}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right border-l border-gray-200 ${noBudgetStyle}`}
+                              >
+                                {hasBudget
+                                  ? formatAmount(row.annual_budget)
+                                  : "—"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
+                                {formatAmount(row.spent_ytd)}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : getEcartColor(row.ecart_ytd)}`}
+                              >
+                                {hasBudget ? formatAmount(row.ecart_ytd) : "—"}
+                              </td>
+                              <td
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-right ${!hasBudget ? noBudgetStyle : ""}`}
+                              >
+                                {formatYearPosition(
+                                  row.percent_ytd,
+                                  row.percent_year_elapsed,
+                                  row.position_indicator
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </Fragment>
                   );
                 })}
               </tbody>

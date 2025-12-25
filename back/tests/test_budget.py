@@ -23,12 +23,14 @@ def sample_virtual_accounts():
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "name": "Alimentation",
+            "category": "Dépenses courantes",
             "is_real": False,
             "active": True,
         },
         {
             "accountId": "22222222-2222-2222-2222-222222222222",
             "name": "Transport",
+            "category": "Dépenses courantes",
             "is_real": False,
             "active": True,
         },
@@ -149,11 +151,13 @@ def test_get_budgets_by_year_returns_all_virtual_accounts(
         {
             "accountId": sample_virtual_accounts[0]["accountId"],
             "name": sample_virtual_accounts[0]["name"],
+            "category": sample_virtual_accounts[0]["category"],
             "Budget": [{"annual_budget": sample_budgets[0]["annual_budget"]}],
         },
         {
             "accountId": sample_virtual_accounts[1]["accountId"],
             "name": sample_virtual_accounts[1]["name"],
+            "category": sample_virtual_accounts[1]["category"],
             "Budget": [{"annual_budget": sample_budgets[1]["annual_budget"]}],
         },
     ]
@@ -188,6 +192,7 @@ def test_get_budgets_by_year_with_null_budget(
         {
             "accountId": sample_virtual_accounts[0]["accountId"],
             "name": sample_virtual_accounts[0]["name"],
+            "category": sample_virtual_accounts[0]["category"],
             "Budget": [],  # Pas de budget défini
         },
     ]
@@ -412,6 +417,7 @@ def test_get_budget_consumption_returns_spending_stats(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "annual_budget": 6000.0,
             "spending_month": 450.0,
             "spending_ytd": 2800.0,
@@ -456,6 +462,7 @@ def test_get_budget_consumption_position_ahead(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "annual_budget": 6000.0,
             "spending_month": 200.0,
             "spending_ytd": 1800.0,  # 30% du budget
@@ -486,6 +493,7 @@ def test_get_budget_consumption_position_behind(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "annual_budget": 6000.0,
             "spending_month": 800.0,
             "spending_ytd": 4200.0,  # 70% du budget
@@ -516,6 +524,7 @@ def test_get_budget_consumption_position_on_track(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "annual_budget": 6000.0,
             "spending_month": 500.0,
             "spending_ytd": 3000.0,  # 50% du budget
@@ -546,6 +555,7 @@ def test_get_budget_consumption_handles_null_spending(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "annual_budget": 6000.0,
             "spending_month": None,  # Pas de dépenses ce mois
             "spending_ytd": None,  # Pas de dépenses cette année
@@ -573,7 +583,7 @@ def test_get_budget_consumption_handles_null_spending(
 
 
 def test_get_budget_consumption_empty(test_client, mock_db, mock_supabase_response):
-    """Retourne une liste vide si aucun budget défini."""
+    """Retourne une liste vide si aucun compte virtuel."""
     # Arrange
     mock_rpc = MagicMock()
     mock_rpc.execute.return_value = mock_supabase_response([])
@@ -588,6 +598,50 @@ def test_get_budget_consumption_empty(test_client, mock_db, mock_supabase_respon
     # Assert
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_get_budget_consumption_without_budget(
+    test_client, mock_db, mock_supabase_response
+):
+    """Retourne les comptes sans budget avec annual_budget null."""
+    # Arrange
+    rpc_data = [
+        {
+            "accountId": "11111111-1111-1111-1111-111111111111",
+            "account_name": "Alimentation",
+            "category": "Dépenses courantes",
+            "annual_budget": None,  # Pas de budget défini
+            "spending_month": 450.0,
+            "spending_ytd": 2800.0,
+        },
+    ]
+
+    mock_rpc = MagicMock()
+    mock_rpc.execute.return_value = mock_supabase_response(rpc_data)
+    mock_db.rpc.return_value = mock_rpc
+
+    # Act
+    with patch(
+        "ploutos.api.routers.budget.calculate_percent_year_elapsed", return_value=50.0
+    ):
+        response = test_client.get("/budget/2025/consumption")
+
+    # Assert
+    assert response.status_code == 200
+    item = response.json()[0]
+    assert item["account_id"] == "11111111-1111-1111-1111-111111111111"
+    assert item["account_name"] == "Alimentation"
+    assert item["category"] == "Dépenses courantes"
+    assert item["annual_budget"] is None
+    assert item["monthly_budget"] is None
+    assert item["spent_month"] == 450.0
+    assert item["remaining_month"] is None
+    assert item["percent_month"] is None
+    assert item["spent_ytd"] == 2800.0
+    assert item["remaining_ytd"] is None
+    assert item["percent_ytd"] is None
+    assert item["percent_year_elapsed"] == 50.0
+    assert item["position_indicator"] is None
 
 
 # =============================================================================
@@ -633,12 +687,14 @@ def test_get_budget_comparison_returns_comparison(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "spent_current": 320.0,
             "spent_previous": 280.0,
         },
         {
             "accountId": "22222222-2222-2222-2222-222222222222",
             "account_name": "Transport",
+            "category": "Dépenses courantes",
             "spent_current": 150.0,
             "spent_previous": 200.0,
         },
@@ -677,6 +733,7 @@ def test_get_budget_comparison_with_zero_previous(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "spent_current": 320.0,
             "spent_previous": 0.0,
         },
@@ -720,6 +777,7 @@ def test_get_budget_comparison_handles_null_values(
         {
             "accountId": "11111111-1111-1111-1111-111111111111",
             "account_name": "Alimentation",
+            "category": "Dépenses courantes",
             "spent_current": None,
             "spent_previous": 280.0,
         },
