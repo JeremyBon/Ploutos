@@ -20,6 +20,10 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Checkout
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        uses: actions/checkout@v4
+
       # Auto-merge avec --merge (pas --squash) pour conserver le commit de release
       - name: Enable auto-merge for Release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
