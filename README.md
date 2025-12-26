@@ -61,13 +61,22 @@ poetry run uvicorn ploutos.api.main:app --reload --port 8080
 ENV=prod poetry run uvicorn ploutos.api.main:app --port 8080
 ```
 
-### Migrations
+### Migrations & Fonctions RPC
 
 ```bash
 supabase migration new nom_migration  # Créer
 supabase db reset                      # Appliquer en local
 supabase db push                       # Pusher vers Cloud
 ```
+
+**Modifier une fonction RPC :**
+```bash
+supabase migration new update_ma_fonction
+# Éditer le fichier créé avec CREATE OR REPLACE FUNCTION ...
+supabase db push  # Applique sur la prod
+```
+
+Ne jamais éditer les fonctions via l'UI Supabase - toujours passer par les migrations pour garder le versioning.
 
 ## Run the project
 

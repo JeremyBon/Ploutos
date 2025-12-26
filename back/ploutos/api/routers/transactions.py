@@ -53,14 +53,26 @@ class TransactionSlavesUpdate(BaseModel):
     slaves: List[TransactionSlaveUpdate]
 
 
-@router.get("/transactions", response_model=List[TransactionFront])
+class PaginatedTransactions(BaseModel):
+    data: List[TransactionFront]
+    total: int
+
+
+@router.get("/transactions", response_model=PaginatedTransactions)
 async def get_transactions(
     db: SessionDep,
     date_from: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     date_to: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
+    description_filter: Optional[str] = Query(
+        None, description="Filter by description (case-insensitive)"
+    ),
+    limit: int = Query(
+        100, description="Number of transactions per page", ge=1, le=500
+    ),
+    offset: int = Query(0, description="Offset for pagination", ge=0),
 ):
-    """Get transactions with optional date filtering"""
+    """Get transactions with optional date filtering and pagination"""
     try:
         response = db.rpc(
             "get_transactions",
@@ -68,13 +80,18 @@ async def get_transactions(
                 "p_date_from": date_from,
                 "p_date_to": date_to,
                 "p_account_id": account_id,
+                "p_description_filter": description_filter,
+                "p_limit": limit,
+                "p_offset": offset,
             },
         ).execute()
 
         if not response.data:
-            return []
+            return {"data": [], "total": 0}
 
-        logger.info(f"{len(response.data)} transactions found")
+        logger.info(
+            f"{len(response.data.get('data', []))} transactions found (total: {response.data.get('total', 0)})"
+        )
         return response.data
     except Exception as e:
         logger.error(f"Error getting transactions: {str(e)}")
