@@ -27,7 +27,7 @@ jobs:
       # Auto-merge avec --merge (pas --squash) pour conserver le commit de release
       - name: Enable auto-merge for Release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
-        run: gh pr merge --merge --auto "${{ fromJSON(steps.release.outputs.pr).number }}"
+        run: gh pr merge --merge "${{ fromJSON(steps.release.outputs.pr).number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
