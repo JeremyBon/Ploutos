@@ -719,62 +719,121 @@ export default function Home() {
   );
 
   // Calcul du patrimoine total par mois (approx) en utilisant les transactions sur les comptes réels
+  // Deux séries: bancaire (date master) et comptable (date slave)
   const patrimonySeries = useMemo(() => {
-    // Reuse months from monthlyRangeSeries
     const labels = monthlyRangeSeries.labels;
     const n = labels.length;
-    const realDelta = Array(n).fill(0);
+    const bankDelta = Array(n).fill(0); // Argent bancaire: basé sur la date master
+    const accountingDelta = Array(n).fill(0); // Argent comptable: basé sur la date slave
 
-    // Accumuler les deltas pour les comptes réels
+    // Helper pour trouver l'index du mois
+    const findMonthIndex = (year: number, month: number) => {
+      return monthlyRangeSeries.labels.findIndex((_, i) => {
+        const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
+        return d.getFullYear() === year && d.getMonth() + 1 === month;
+      });
+    };
+
     transactions.forEach((t) => {
-      // 1. Traiter la transaction master si elle est sur un compte réel
       const masterAccount = accounts.find(
         (acc) => acc.account_id === t.accountId
       );
+
+      // 1. Argent bancaire: on utilise la date master pour les transactions sur comptes réels
       if (masterAccount && masterAccount.is_real) {
         const { year: ty, month: tm } = extractYearMonth(t.date);
-        const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
-          const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
-          return d.getFullYear() === ty && d.getMonth() + 1 === tm;
-        });
+        const idx = findMonthIndex(ty, tm);
         if (idx !== -1) {
           const isRevenue = t.type.toLowerCase() === "credit";
           const isExpense = t.type.toLowerCase() === "debit";
           const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
-          realDelta[idx] += delta;
+          bankDelta[idx] += delta;
         }
       }
 
-      // 2. Traiter les slaves sur des comptes réels
+      // 2. Pour les slaves sur comptes réels, ajouter aussi à bankDelta (date master)
       t.TransactionsSlaves.forEach((slave) => {
         if (slave.slaveAccountIsReal === true) {
-          const { year: sy, month: sm } = extractYearMonth(slave.date);
-          const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
-            // match by comparing year/month from labels: rebuild month objects
-            const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
-            return d.getFullYear() === sy && d.getMonth() + 1 === sm;
-          });
-          if (idx === -1) return;
-          const isRevenue = slave.type.toLowerCase() === "credit";
-          const isExpense = slave.type.toLowerCase() === "debit";
-          const delta = isRevenue
-            ? slave.amount
-            : isExpense
-              ? -slave.amount
-              : 0;
-          realDelta[idx] += delta;
+          // Pour l'argent bancaire: utiliser la date MASTER
+          const { year: ty, month: tm } = extractYearMonth(t.date);
+          const idx = findMonthIndex(ty, tm);
+          if (idx !== -1) {
+            const isRevenue = slave.type.toLowerCase() === "credit";
+            const isExpense = slave.type.toLowerCase() === "debit";
+            const delta = isRevenue
+              ? slave.amount
+              : isExpense
+                ? -slave.amount
+                : 0;
+            bankDelta[idx] += delta;
+          }
         }
       });
+
+      // 3. Argent comptable: basé sur les dates des slaves
+      if (masterAccount && masterAccount.is_real) {
+        // Si pas de slaves, utiliser la date master pour le comptable aussi
+        if (t.TransactionsSlaves.length === 0) {
+          const { year: ty, month: tm } = extractYearMonth(t.date);
+          const idx = findMonthIndex(ty, tm);
+          if (idx !== -1) {
+            const isRevenue = t.type.toLowerCase() === "credit";
+            const isExpense = t.type.toLowerCase() === "debit";
+            const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
+            accountingDelta[idx] += delta;
+          }
+        } else {
+          // Avec des slaves: utiliser la date de chaque slave pour l'impact comptable
+          t.TransactionsSlaves.forEach((slave) => {
+            const { year: sy, month: sm } = extractYearMonth(slave.date);
+            const idx = findMonthIndex(sy, sm);
+            if (idx !== -1) {
+              if (slave.slaveAccountIsReal === true) {
+                // Slave sur compte réel: credit = +patrimoine, debit = -patrimoine
+                const isRevenue = slave.type.toLowerCase() === "credit";
+                const isExpense = slave.type.toLowerCase() === "debit";
+                const delta = isRevenue
+                  ? slave.amount
+                  : isExpense
+                    ? -slave.amount
+                    : 0;
+                accountingDelta[idx] += delta;
+              } else {
+                // Slave sur compte virtuel: credit = charge = -patrimoine, debit = revenu = +patrimoine
+                const isRevenue = slave.type.toLowerCase() === "debit";
+                const isExpense = slave.type.toLowerCase() === "credit";
+                const delta = isRevenue
+                  ? slave.amount
+                  : isExpense
+                    ? -slave.amount
+                    : 0;
+                accountingDelta[idx] += delta;
+              }
+            }
+          });
+        }
+      }
     });
 
-    // cumulative
-    const cumulative = realDelta.map((_, i) =>
-      realDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
+    // cumulative pour bancaire
+    const bankCumulative = bankDelta.map((_, i) =>
+      bankDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
     );
-    const lastCum = cumulative[n - 1] || 0;
-    const baseline = totalAssets - lastCum; // align last point with current totalAssets
-    const patrimony = cumulative.map((c) => baseline + c);
-    return { labels, patrimony };
+    const lastBankCum = bankCumulative[n - 1] || 0;
+    const bankBaseline = totalAssets - lastBankCum;
+    const bankPatrimony = bankCumulative.map((c) => bankBaseline + c);
+
+    // cumulative pour comptable
+    const accountingCumulative = accountingDelta.map((_, i) =>
+      accountingDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
+    );
+    const lastAccountingCum = accountingCumulative[n - 1] || 0;
+    const accountingBaseline = totalAssets - lastAccountingCum;
+    const accountingPatrimony = accountingCumulative.map(
+      (c) => accountingBaseline + c
+    );
+
+    return { labels, bankPatrimony, accountingPatrimony };
   }, [
     transactions,
     monthlyRangeSeries,
@@ -790,11 +849,32 @@ export default function Home() {
       datasets: [
         {
           label: "Patrimoine total",
-          data: patrimonySeries.patrimony,
+          data: patrimonySeries.bankPatrimony,
           borderColor: "#2563eb",
           backgroundColor: "rgba(37,99,235,0.1)",
           tension: 0.3,
           fill: true,
+          order: 1,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointBackgroundColor: "#2563eb",
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
+        },
+        {
+          label: "Patrimoine estimé",
+          data: patrimonySeries.accountingPatrimony,
+          borderColor: "#f97316",
+          backgroundColor: "rgba(249,115,22,0.1)",
+          tension: 0.3,
+          fill: false,
+          borderDash: [5, 5],
+          order: 0,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: "#f97316",
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
         },
       ],
     }),
@@ -904,13 +984,23 @@ export default function Home() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          position: "top" as const,
+          labels: {
+            usePointStyle: true,
+            pointStyle: "circle" as const,
+          },
+        },
         tooltip: {
+          mode: "index" as const,
+          intersect: false,
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function (context: any) {
               const value = context.raw || 0;
-              return `Patrimoine: ${value.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`;
+              const label = context.dataset.label || "";
+              return `${label}: ${value.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`;
             },
           },
         },
@@ -1722,9 +1812,8 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
-                  Patrimoine total (historique)
+                  Historique du patrimoine
                 </h3>
-                <div className="text-sm text-gray-500">Point par mois</div>
               </div>
               <div style={{ width: "100%", height: 260 }}>
                 <div className="w-full h-full">

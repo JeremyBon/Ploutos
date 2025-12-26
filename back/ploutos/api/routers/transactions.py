@@ -71,6 +71,14 @@ async def get_transactions(
         100, description="Number of transactions per page", ge=1, le=500
     ),
     offset: int = Query(0, description="Offset for pagination", ge=0),
+    amount_min: Optional[float] = Query(None, description="Minimum amount filter"),
+    amount_max: Optional[float] = Query(None, description="Maximum amount filter"),
+    transaction_type: Optional[str] = Query(
+        None, description="Filter by type: debit or credit"
+    ),
+    is_transfer: Optional[bool] = Query(
+        None, description="Filter by transfer status (has slave on real account)"
+    ),
 ):
     """Get transactions with optional date filtering and pagination"""
     try:
@@ -83,6 +91,10 @@ async def get_transactions(
                 "p_description_filter": description_filter,
                 "p_limit": limit,
                 "p_offset": offset,
+                "p_amount_min": amount_min,
+                "p_amount_max": amount_max,
+                "p_type": transaction_type,
+                "p_is_transfer": is_transfer,
             },
         ).execute()
 
