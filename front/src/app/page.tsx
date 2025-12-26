@@ -138,6 +138,13 @@ interface MonthlySummary {
     year?: number;
     month?: number;
   };
+  // Pour le tooltip en mode comptable (réconciliation avec bancaire)
+  bancaireExpenses: number; // Dépenses basées sur date master
+  bancaireRevenues: number; // Revenus basés sur date master
+  ccaSortants: number; // Payés ce mois, comptabilisés plus tard
+  pcaSortants: number; // Reçus ce mois, comptabilisés plus tard
+  ccaEntrants: number; // Payés avant, comptabilisés ce mois
+  pcaEntrants: number; // Reçus avant, comptabilisés ce mois
 }
 
 export default function Home() {
@@ -166,6 +173,9 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [categoryDisplayCount, setCategoryDisplayCount] = useState<3 | 8>(3);
+  const [balanceView, setBalanceView] = useState<"bancaire" | "comptable">(
+    "comptable"
+  );
 
   const fetchAccounts = async () => {
     try {
@@ -249,84 +259,149 @@ export default function Home() {
     const revenuesMap = new Map<string, MonthlySummaryItem>();
     const expensesMap = new Map<string, MonthlySummaryItem>();
 
-    transactions.forEach((transaction) => {
-      // Traiter les transactions slaves (détail des comptes)
-      transaction.TransactionsSlaves.forEach((slave) => {
-        // Filtrer uniquement les transactions du mois sélectionné
-        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
-          slave.date
+    // Totaux bancaires (basés sur date master) - pour le tooltip en mode comptable
+    let bancaireExpenses = 0;
+    let bancaireRevenues = 0;
+    // CCA/PCA sortants (payés ce mois, comptabilisés plus tard)
+    let ccaSortants = 0;
+    let pcaSortants = 0;
+    // CCA/PCA entrants (payés avant, comptabilisés ce mois)
+    let ccaEntrants = 0;
+    let pcaEntrants = 0;
+
+    // Calculer la fin du mois pour détecter les CCA/PCA sortants
+    const endOfSelectedMonth = new Date(selectedYear, selectedMonth, 0);
+    const endOfMonthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(endOfSelectedMonth.getDate()).padStart(2, "0")}`;
+
+    // Helper pour ajouter un slave au résumé
+    const addSlaveToSummary = (
+      slave: TransactionSlave,
+      displayDate: string
+    ) => {
+      if (slave.slaveAccountIsReal !== false) return;
+
+      const accountId = slave.accountId;
+      const accountName = slave.slaveAccountName;
+      const amount = slave.amount;
+      const type = slave.type;
+
+      const account = allAccounts.find((acc) => acc.accountId === accountId);
+      const category = account?.category || "Inconnu";
+      const subCategory = account?.sub_category || "Inconnu";
+
+      const isRevenue = type.toLowerCase() === "debit";
+      const isExpense = type.toLowerCase() === "credit";
+
+      const targetMap = isRevenue
+        ? revenuesMap
+        : isExpense
+          ? expensesMap
+          : null;
+      if (!targetMap) return;
+
+      if (targetMap.has(category)) {
+        const existing = targetMap.get(category)!;
+        existing.total_amount += amount;
+        existing.transaction_count += 1;
+        if (displayDate > existing.latest_date) {
+          existing.latest_date = displayDate;
+        }
+        const existingAccount = existing.accounts.find(
+          (a) => a.accountId === accountId
         );
-        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
-        // Filtrer seulement les comptes virtuels (is_real = false)
-        if (slave.slaveAccountIsReal === false) {
-          const accountId = slave.accountId;
-          const accountName = slave.slaveAccountName;
-          const amount = slave.amount;
-          const type = slave.type;
-
-          // Récupérer les informations du compte depuis la liste de tous les comptes (incluant les virtuels)
-          const account = allAccounts.find(
-            (acc) => acc.accountId === accountId
-          );
-          const category = account?.category || "Inconnu";
-          const subCategory = account?.sub_category || "Inconnu";
-
-          // Logique de classification basée sur le type :
-          // - type "credit" = dépenses (sortie d'argent)
-          // - type "debit" = revenus (entrée d'argent)
-          const isRevenue = type.toLowerCase() === "debit"; // Débits = revenus
-          const isExpense = type.toLowerCase() === "credit"; // Crédits = dépenses
-
-          const targetMap = isRevenue
-            ? revenuesMap
-            : isExpense
-              ? expensesMap
-              : null;
-          if (!targetMap) return;
-
-          if (targetMap.has(category)) {
-            const existing = targetMap.get(category)!;
-            existing.total_amount += amount;
-            existing.transaction_count += 1;
-            if (slave.date > existing.latest_date) {
-              existing.latest_date = slave.date;
-            }
-            // Mettre à jour ou ajouter le compte dans la liste des comptes
-            const existingAccount = existing.accounts.find(
-              (a) => a.accountId === accountId
-            );
-            if (existingAccount) {
-              existingAccount.total_amount += amount;
-              existingAccount.transaction_count += 1;
-            } else {
-              existing.accounts.push({
-                accountId,
-                account_name: accountName,
-                sub_category: subCategory,
-                total_amount: amount,
-                transaction_count: 1,
-              });
-            }
-          } else {
-            targetMap.set(category, {
-              categoryKey: category,
-              category,
+        if (existingAccount) {
+          existingAccount.total_amount += amount;
+          existingAccount.transaction_count += 1;
+        } else {
+          existing.accounts.push({
+            accountId,
+            account_name: accountName,
+            sub_category: subCategory,
+            total_amount: amount,
+            transaction_count: 1,
+          });
+        }
+      } else {
+        targetMap.set(category, {
+          categoryKey: category,
+          category,
+          total_amount: amount,
+          transaction_count: 1,
+          latest_date: displayDate,
+          accounts: [
+            {
+              accountId,
+              account_name: accountName,
+              sub_category: subCategory,
               total_amount: amount,
               transaction_count: 1,
-              latest_date: slave.date,
-              accounts: [
-                {
-                  accountId,
-                  account_name: accountName,
-                  sub_category: subCategory,
-                  total_amount: amount,
-                  transaction_count: 1,
-                },
-              ],
-            });
+            },
+          ],
+        });
+      }
+    };
+
+    // Calculer les totaux bancaires et CCA/PCA sortants (toujours, pour le tooltip)
+    transactions.forEach((transaction) => {
+      const { year: masterYear, month: masterMonth } = extractYearMonth(
+        transaction.date
+      );
+      if (masterYear === selectedYear && masterMonth === selectedMonth) {
+        transaction.TransactionsSlaves.forEach((slave) => {
+          if (slave.slaveAccountIsReal !== false) return;
+          const isCredit = slave.type.toLowerCase() === "credit";
+          const isDebit = slave.type.toLowerCase() === "debit";
+          if (isCredit) bancaireExpenses += slave.amount;
+          if (isDebit) bancaireRevenues += slave.amount;
+
+          // CCA/PCA sortants: slaves avec date future (comptabilisés plus tard)
+          const slaveDate = slave.date.split(/[T ]/)[0];
+          if (slaveDate > endOfMonthStr) {
+            if (isCredit) ccaSortants += slave.amount;
+            if (isDebit) pcaSortants += slave.amount;
           }
-        }
-      });
+        });
+      }
+    });
+
+    // Calculer le résumé affiché selon le mode
+    transactions.forEach((transaction) => {
+      const { year: masterYear, month: masterMonth } = extractYearMonth(
+        transaction.date
+      );
+      const isMasterInSelectedMonth =
+        masterYear === selectedYear && masterMonth === selectedMonth;
+      const isMasterFromPreviousMonth =
+        masterYear < selectedYear ||
+        (masterYear === selectedYear && masterMonth < selectedMonth);
+
+      if (balanceView === "comptable") {
+        // Mode comptable: filtrer par date du slave
+        transaction.TransactionsSlaves.forEach((slave) => {
+          const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+            slave.date
+          );
+          if (slaveYear !== selectedYear || slaveMonth !== selectedMonth)
+            return;
+
+          // Calculer CCA/PCA entrants (payés avant, comptabilisés ce mois)
+          if (isMasterFromPreviousMonth && slave.slaveAccountIsReal === false) {
+            const isCredit = slave.type.toLowerCase() === "credit";
+            const isDebit = slave.type.toLowerCase() === "debit";
+            if (isCredit) ccaEntrants += slave.amount;
+            if (isDebit) pcaEntrants += slave.amount;
+          }
+
+          addSlaveToSummary(slave, slave.date);
+        });
+      } else {
+        // Mode bancaire: filtrer par date du master, inclure tous les slaves
+        if (!isMasterInSelectedMonth) return;
+
+        transaction.TransactionsSlaves.forEach((slave) => {
+          addSlaveToSummary(slave, transaction.date);
+        });
+      }
     });
 
     const sortFn = (a: MonthlySummaryItem, b: MonthlySummaryItem) => {
@@ -339,7 +414,6 @@ export default function Home() {
       return sortOrder === "asc" ? comparison : -comparison;
     };
 
-    // Trier également les comptes à l'intérieur de chaque catégorie
     const sortAccountsFn = (
       a: MonthlySummaryItem["accounts"][0],
       b: MonthlySummaryItem["accounts"][0]
@@ -361,6 +435,12 @@ export default function Home() {
         year: selectedYear,
         month: selectedMonth,
       },
+      bancaireExpenses,
+      bancaireRevenues,
+      ccaSortants,
+      pcaSortants,
+      ccaEntrants,
+      pcaEntrants,
     };
   }, [
     transactions,
@@ -369,6 +449,7 @@ export default function Home() {
     selectedMonth,
     sortBy,
     sortOrder,
+    balanceView,
   ]);
 
   const totalAssets = accounts.reduce(
@@ -402,12 +483,24 @@ export default function Home() {
     const detailedTransactions: DetailedTransaction[] = [];
 
     transactions.forEach((transaction) => {
-      transaction.TransactionsSlaves.forEach((slave) => {
-        // Filtrer uniquement les transactions du mois sélectionné
-        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
-          slave.date
+      // En mode bancaire, filtrer par date master
+      if (balanceView === "bancaire") {
+        const { year: masterYear, month: masterMonth } = extractYearMonth(
+          transaction.date
         );
-        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
+        if (masterYear !== selectedYear || masterMonth !== selectedMonth)
+          return;
+      }
+
+      transaction.TransactionsSlaves.forEach((slave) => {
+        // En mode comptable, filtrer par date slave
+        if (balanceView === "comptable") {
+          const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+            slave.date
+          );
+          if (slaveYear !== selectedYear || slaveMonth !== selectedMonth)
+            return;
+        }
 
         // Filtrer seulement les comptes virtuels
         if (slave.slaveAccountIsReal === false) {
@@ -430,7 +523,7 @@ export default function Home() {
             detailedTransactions.push({
               transactionId: transaction.transactionId,
               description: transaction.description,
-              date: slave.date,
+              date: balanceView === "bancaire" ? transaction.date : slave.date,
               amount: slave.amount,
               accountName: slave.slaveAccountName,
               accountId: slave.accountId,
@@ -1117,6 +1210,30 @@ export default function Home() {
                 >
                   Aujourd&apos;hui
                 </button>
+
+                {/* Balance View Toggle */}
+                <div className="flex gap-1 ml-4 bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setBalanceView("comptable")}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      balanceView === "comptable"
+                        ? "bg-white text-gray-800 shadow-sm font-medium"
+                        : "text-gray-600 hover:text-gray-800"
+                    }`}
+                  >
+                    Comptable
+                  </button>
+                  <button
+                    onClick={() => setBalanceView("bancaire")}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      balanceView === "bancaire"
+                        ? "bg-white text-gray-800 shadow-sm font-medium"
+                        : "text-gray-600 hover:text-gray-800"
+                    }`}
+                  >
+                    Bancaire
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1175,11 +1292,79 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     Revenus
                   </h3>
-                  <div className="text-2xl font-bold text-green-600">
-                    {totalRevenues.toLocaleString("fr-FR", {
-                      style: "currency",
-                      currency: "EUR",
-                    })}
+                  <div className="text-right">
+                    {balanceView === "comptable" ? (
+                      <div className="group relative inline-block">
+                        <div className="text-2xl font-bold text-green-600 cursor-help">
+                          {totalRevenues.toLocaleString("fr-FR", {
+                            style: "currency",
+                            currency: "EUR",
+                          })}
+                          {(monthlySummary.pcaSortants > 0 ||
+                            monthlySummary.pcaEntrants > 0) && (
+                            <span className="ml-1 text-sm text-gray-400">
+                              ⓘ
+                            </span>
+                          )}
+                        </div>
+                        {(monthlySummary.pcaSortants > 0 ||
+                          monthlySummary.pcaEntrants > 0) && (
+                          <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 shadow-lg whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="flex justify-between gap-4">
+                                <span>Bancaire ce mois:</span>
+                                <span>
+                                  {monthlySummary.bancaireRevenues.toLocaleString(
+                                    "fr-FR",
+                                    { style: "currency", currency: "EUR" }
+                                  )}
+                                </span>
+                              </div>
+                              {monthlySummary.pcaSortants > 0 && (
+                                <div className="flex justify-between gap-4 text-red-300">
+                                  <span>- Comptabilisés plus tard:</span>
+                                  <span>
+                                    -
+                                    {monthlySummary.pcaSortants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {monthlySummary.pcaEntrants > 0 && (
+                                <div className="flex justify-between gap-4 text-blue-300">
+                                  <span>+ Mois précédents:</span>
+                                  <span>
+                                    +
+                                    {monthlySummary.pcaEntrants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="border-t border-gray-600 pt-1 flex justify-between gap-4 font-medium">
+                                <span>= Total comptable:</span>
+                                <span>
+                                  {totalRevenues.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-2xl font-bold text-green-600">
+                        {totalRevenues.toLocaleString("fr-FR", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1280,12 +1465,81 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     Dépenses
                   </h3>
-                  <div className="text-2xl font-bold text-red-600">
-                    -
-                    {totalExpenses.toLocaleString("fr-FR", {
-                      style: "currency",
-                      currency: "EUR",
-                    })}
+                  <div className="text-right">
+                    {balanceView === "comptable" ? (
+                      <div className="group relative inline-block">
+                        <div className="text-2xl font-bold text-red-600 cursor-help">
+                          -
+                          {totalExpenses.toLocaleString("fr-FR", {
+                            style: "currency",
+                            currency: "EUR",
+                          })}
+                          {(monthlySummary.ccaSortants > 0 ||
+                            monthlySummary.ccaEntrants > 0) && (
+                            <span className="ml-1 text-sm text-gray-400">
+                              ⓘ
+                            </span>
+                          )}
+                        </div>
+                        {(monthlySummary.ccaSortants > 0 ||
+                          monthlySummary.ccaEntrants > 0) && (
+                          <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 shadow-lg whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="flex justify-between gap-4">
+                                <span>Bancaire ce mois:</span>
+                                <span>
+                                  {monthlySummary.bancaireExpenses.toLocaleString(
+                                    "fr-FR",
+                                    { style: "currency", currency: "EUR" }
+                                  )}
+                                </span>
+                              </div>
+                              {monthlySummary.ccaSortants > 0 && (
+                                <div className="flex justify-between gap-4 text-red-300">
+                                  <span>- Comptabilisés plus tard:</span>
+                                  <span>
+                                    -
+                                    {monthlySummary.ccaSortants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {monthlySummary.ccaEntrants > 0 && (
+                                <div className="flex justify-between gap-4 text-orange-300">
+                                  <span>+ Mois précédents:</span>
+                                  <span>
+                                    +
+                                    {monthlySummary.ccaEntrants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="border-t border-gray-600 pt-1 flex justify-between gap-4 font-medium">
+                                <span>= Total comptable:</span>
+                                <span>
+                                  {totalExpenses.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-2xl font-bold text-red-600">
+                        -
+                        {totalExpenses.toLocaleString("fr-FR", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
