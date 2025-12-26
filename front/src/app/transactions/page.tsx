@@ -513,7 +513,7 @@ export default function Transactions() {
       date: string;
       accountId: string;
     }[]
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     // Mettre à jour la transaction principale
     const response = await fetch(`${API_URL}/transactions/${transactionId}`, {
       method: "PUT",
@@ -528,7 +528,11 @@ export default function Transactions() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to update transaction");
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.detail || "Échec de la mise à jour de la transaction",
+      };
     }
 
     // Mettre à jour les slaves
@@ -554,13 +558,16 @@ export default function Transactions() {
 
     if (!slavesResponse.ok) {
       const errorData = await slavesResponse.json().catch(() => ({}));
-      throw new Error(
-        errorData.detail || "Failed to update transaction slaves"
-      );
+      return {
+        success: false,
+        error:
+          errorData.detail || "Échec de la mise à jour des transactions slaves",
+      };
     }
 
     // Recharger les transactions
     await fetchTransactions();
+    return { success: true };
   };
 
   return (
@@ -1076,7 +1083,7 @@ export default function Transactions() {
                           transaction.TransactionsSlaves.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {(() => {
-                                const smoothingMap = detectSmoothingGroups(
+                                const slavesWithNames =
                                   transaction.TransactionsSlaves.map((s) => ({
                                     slaveId: s.slaveId,
                                     type: s.type,
@@ -1089,33 +1096,96 @@ export default function Transactions() {
                                       s.Accounts?.name ||
                                       "",
                                     slaveAccountIsReal: false,
-                                  }))
-                                );
-                                return transaction.TransactionsSlaves.map(
-                                  (slave) => {
-                                    const smoothingInfo = smoothingMap.get(
-                                      slave.slaveId
-                                    );
-                                    return (
-                                      <div
-                                        key={slave.slaveId}
-                                        className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap flex items-center gap-1"
-                                      >
-                                        {slave.slaveAccountName ||
-                                          "⚠️ Compte non récupéré"}
-                                        {smoothingInfo && (
-                                          <span
-                                            className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
-                                            title={`Fait partie d'un lissage de ${formatAmount(smoothingInfo.totalAmount)} sur ${smoothingInfo.totalMonths} mois`}
-                                          >
-                                            📊 {smoothingInfo.position}/
-                                            {smoothingInfo.totalMonths}
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
+                                  }));
+
+                                const smoothingMap =
+                                  detectSmoothingGroups(slavesWithNames);
+
+                                // Regrouper les slaves par compte
+                                const groupedByAccount = new Map<
+                                  string,
+                                  {
+                                    accountName: string;
+                                    slaves: typeof slavesWithNames;
+                                    smoothingTotalMonths?: number;
+                                    smoothingTotalAmount?: number;
                                   }
-                                );
+                                >();
+
+                                for (const slave of slavesWithNames) {
+                                  const existing = groupedByAccount.get(
+                                    slave.accountId
+                                  );
+                                  if (existing) {
+                                    existing.slaves.push(slave);
+                                  } else {
+                                    groupedByAccount.set(slave.accountId, {
+                                      accountName: slave.slaveAccountName,
+                                      slaves: [slave],
+                                    });
+                                  }
+                                }
+
+                                // Pour chaque groupe, vérifier si c'est du lissage
+                                const displayGroups: {
+                                  key: string;
+                                  accountName: string;
+                                  count: number;
+                                  isSmoothing: boolean;
+                                  totalMonths?: number;
+                                  totalAmount?: number;
+                                }[] = [];
+
+                                for (const [
+                                  accountId,
+                                  group,
+                                ] of groupedByAccount) {
+                                  const firstSlave = group.slaves[0];
+                                  const smoothingInfo = smoothingMap.get(
+                                    firstSlave.slaveId
+                                  );
+
+                                  if (
+                                    smoothingInfo &&
+                                    group.slaves.length > 1
+                                  ) {
+                                    // C'est un groupe de lissage - afficher un seul label
+                                    displayGroups.push({
+                                      key: accountId,
+                                      accountName: group.accountName,
+                                      count: group.slaves.length,
+                                      isSmoothing: true,
+                                      totalMonths: smoothingInfo.totalMonths,
+                                      totalAmount: smoothingInfo.totalAmount,
+                                    });
+                                  } else {
+                                    // Pas de lissage ou un seul slave - afficher normalement
+                                    displayGroups.push({
+                                      key: accountId,
+                                      accountName: group.accountName,
+                                      count: group.slaves.length,
+                                      isSmoothing: false,
+                                    });
+                                  }
+                                }
+
+                                return displayGroups.map((group) => (
+                                  <div
+                                    key={group.key}
+                                    className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap flex items-center gap-1"
+                                  >
+                                    {group.accountName ||
+                                      "⚠️ Compte non récupéré"}
+                                    {group.isSmoothing && group.totalMonths && (
+                                      <span
+                                        className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
+                                        title={`Lissage de ${formatAmount(group.totalAmount || 0)} sur ${group.totalMonths} mois`}
+                                      >
+                                        📊 {group.totalMonths} mois
+                                      </span>
+                                    )}
+                                  </div>
+                                ));
                               })()}
                             </div>
                           )}

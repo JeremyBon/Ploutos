@@ -357,24 +357,21 @@ export default function TransactionEditModal({
 
     setIsSaving(true);
     setError(null);
-    try {
-      await onSave(
-        transaction.transactionId,
-        editForm.description,
-        transaction.date,
-        editSlaves
-      );
+
+    const result = await onSave(
+      transaction.transactionId,
+      editForm.description,
+      transaction.date,
+      editSlaves
+    );
+
+    if (result.success) {
       handleClose();
-    } catch (err) {
-      console.error("Error saving transaction:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Une erreur est survenue lors de la sauvegarde"
-      );
-    } finally {
-      setIsSaving(false);
+    } else {
+      setError(result.error || "Une erreur est survenue lors de la sauvegarde");
     }
+
+    setIsSaving(false);
   };
 
   if (!isOpen || !transaction) return null;

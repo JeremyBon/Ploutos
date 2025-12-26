@@ -315,3 +315,38 @@ async def get_deferred_accounts(db: SessionDep):
             total=deferred_total, details=deferred_details
         ),
     )
+
+
+class PatrimonyTimelineEntry(BaseModel):
+    """Single entry in patrimony timeline."""
+
+    month_date: str
+    bank_patrimony: float
+    accounting_patrimony: float
+    cca_amount: float
+    pca_amount: float
+
+
+@router.get("/accounts/patrimony-timeline", response_model=List[PatrimonyTimelineEntry])
+async def get_patrimony_timeline(
+    db: SessionDep,
+    start_date: str,  # YYYY-MM-DD
+    end_date: str,  # YYYY-MM-DD
+):
+    """Get patrimony timeline for a date range.
+
+    Returns monthly patrimony values (bancaire and comptable) with CCA/PCA breakdown.
+    - bank_patrimony: Sum of real account balances at end of each month
+    - accounting_patrimony: bank_patrimony + CCA - PCA
+    - cca_amount: Prepaid expenses (charges paid but not yet consumed)
+    - pca_amount: Deferred revenue (revenue received but not yet earned)
+    """
+    response = db.rpc(
+        "get_patrimony_timeline",
+        {"p_start_date": start_date, "p_end_date": end_date},
+    ).execute()
+
+    if not response.data:
+        return []
+
+    return response.data

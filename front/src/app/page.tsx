@@ -80,6 +80,21 @@ interface DeferredAccounts {
   deferred_revenue: DeferredBalance;
 }
 
+interface GroupedDeferredTransaction {
+  master_id: string;
+  total_amount: number;
+  master_date: string;
+  latest_slave_date: string;
+  description: string;
+  account_names: string[];
+}
+
+interface GroupedDeferredCategory {
+  category: string;
+  total_amount: number;
+  transactions: GroupedDeferredTransaction[];
+}
+
 interface TransactionSlave {
   slaveId: string;
   type: string;
@@ -114,6 +129,14 @@ interface DetailedTransaction {
   category: string;
   subCategory: string;
   type: string;
+}
+
+interface PatrimonyTimelineEntry {
+  month_date: string;
+  bank_patrimony: number;
+  accounting_patrimony: number;
+  cca_amount: number;
+  pca_amount: number;
 }
 
 interface MonthlySummaryItem {
@@ -156,6 +179,9 @@ export default function Home() {
   const [expandedTransit, setExpandedTransit] = useState<"cca" | "pca" | null>(
     null
   );
+  const [expandedDeferredCategories, setExpandedDeferredCategories] = useState<
+    Set<string>
+  >(new Set());
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [selectedYear, setSelectedYear] = useState<number>(
@@ -176,6 +202,9 @@ export default function Home() {
   const [balanceView, setBalanceView] = useState<"bancaire" | "comptable">(
     "comptable"
   );
+  const [patrimonyTimeline, setPatrimonyTimeline] = useState<
+    PatrimonyTimelineEntry[]
+  >([]);
 
   const fetchAccounts = async () => {
     try {
@@ -243,6 +272,27 @@ export default function Home() {
     }
   };
 
+  const fetchPatrimonyTimeline = async () => {
+    try {
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const start = new Date(selectedYear, selectedMonth - 1 - 3, 1);
+      const end = new Date(selectedYear, selectedMonth - 1 + 2, 1);
+      const startDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`;
+      const endDate = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-01`;
+
+      const response = await fetch(
+        `${API_URL}/accounts/patrimony-timeline?start_date=${startDate}&end_date=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch patrimony timeline");
+      }
+      const data = await response.json();
+      setPatrimonyTimeline(data || []);
+    } catch (error) {
+      console.error("Error fetching patrimony timeline:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAccounts();
     fetchAllAccounts();
@@ -251,6 +301,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchTransactions();
+    fetchPatrimonyTimeline();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, selectedMonth]);
 
@@ -457,6 +508,102 @@ export default function Home() {
     0
   );
 
+  // Grouper les CCA/PCA par catégorie, puis par transaction
+  const groupedDeferredAccounts = useMemo(() => {
+    const groupDetailsByCategory = (
+      details: DeferredDetail[]
+    ): GroupedDeferredCategory[] => {
+      // D'abord grouper par catégorie
+      const categoryMap = new Map<
+        string,
+        {
+          category: string;
+          total_amount: number;
+          transactionMap: Map<
+            string,
+            {
+              master_id: string;
+              total_amount: number;
+              master_date: string;
+              latest_slave_date: string;
+              description: string;
+              account_names: Set<string>;
+            }
+          >;
+        }
+      >();
+
+      details.forEach((detail) => {
+        // Trouver la catégorie du compte
+        const account = allAccounts.find(
+          (acc) => acc.name === detail.account_name
+        );
+        const category = account?.category || "Inconnu";
+
+        if (!categoryMap.has(category)) {
+          categoryMap.set(category, {
+            category,
+            total_amount: 0,
+            transactionMap: new Map(),
+          });
+        }
+
+        const categoryData = categoryMap.get(category)!;
+        categoryData.total_amount += detail.amount;
+
+        // Grouper par transaction dans cette catégorie
+        if (categoryData.transactionMap.has(detail.master_id)) {
+          const existing = categoryData.transactionMap.get(detail.master_id)!;
+          existing.total_amount += detail.amount;
+          existing.account_names.add(detail.account_name);
+          if (detail.slave_date > existing.latest_slave_date) {
+            existing.latest_slave_date = detail.slave_date;
+          }
+        } else {
+          categoryData.transactionMap.set(detail.master_id, {
+            master_id: detail.master_id,
+            total_amount: detail.amount,
+            master_date: detail.master_date,
+            latest_slave_date: detail.slave_date,
+            description: detail.description,
+            account_names: new Set([detail.account_name]),
+          });
+        }
+      });
+
+      // Convertir en tableau et trier
+      return Array.from(categoryMap.values())
+        .map((cat) => ({
+          category: cat.category,
+          total_amount: cat.total_amount,
+          transactions: Array.from(cat.transactionMap.values())
+            .map((t) => ({
+              ...t,
+              account_names: Array.from(t.account_names),
+            }))
+            .sort(
+              (a, b) =>
+                new Date(a.latest_slave_date).getTime() -
+                new Date(b.latest_slave_date).getTime()
+            ),
+        }))
+        .sort((a, b) => b.total_amount - a.total_amount);
+    };
+
+    if (!deferredAccounts) return null;
+
+    return {
+      prepaid_expenses: groupDetailsByCategory(
+        deferredAccounts.prepaid_expenses.details
+      ),
+      deferred_revenue: groupDetailsByCategory(
+        deferredAccounts.deferred_revenue.details
+      ),
+      prepaid_total: deferredAccounts.prepaid_expenses.total,
+      deferred_total: deferredAccounts.deferred_revenue.total,
+    };
+  }, [deferredAccounts, allAccounts]);
+
   const getMonthName = (month: number) => {
     const months = [
       "Janvier",
@@ -476,11 +623,21 @@ export default function Home() {
   };
 
   // Fonction pour obtenir les transactions détaillées d'une catégorie
+  // Groupe par transaction et somme les montants des slaves de cette catégorie
   const getDetailedTransactionsForCategory = (
     category: string,
     type: "revenue" | "expense"
   ): DetailedTransaction[] => {
-    const detailedTransactions: DetailedTransaction[] = [];
+    // Map pour grouper par transactionId
+    const transactionMap = new Map<
+      string,
+      {
+        transaction: Transaction;
+        totalAmount: number;
+        latestDate: string;
+        accountNames: Set<string>;
+      }
+    >();
 
     transactions.forEach((transaction) => {
       // En mode bancaire, filtrer par date master
@@ -520,21 +677,43 @@ export default function Home() {
             (type === "revenue" && isRevenue) ||
             (type === "expense" && isExpense)
           ) {
-            detailedTransactions.push({
-              transactionId: transaction.transactionId,
-              description: transaction.description,
-              date: balanceView === "bancaire" ? transaction.date : slave.date,
-              amount: slave.amount,
-              accountName: slave.slaveAccountName,
-              accountId: slave.accountId,
-              category: accountCategory,
-              subCategory: account?.sub_category ?? "Inconnu",
-              type: transaction.type,
-            });
+            const slaveDate =
+              balanceView === "bancaire" ? transaction.date : slave.date;
+
+            if (transactionMap.has(transaction.transactionId)) {
+              const existing = transactionMap.get(transaction.transactionId)!;
+              existing.totalAmount += slave.amount;
+              existing.accountNames.add(slave.slaveAccountName);
+              if (slaveDate > existing.latestDate) {
+                existing.latestDate = slaveDate;
+              }
+            } else {
+              transactionMap.set(transaction.transactionId, {
+                transaction,
+                totalAmount: slave.amount,
+                latestDate: slaveDate,
+                accountNames: new Set([slave.slaveAccountName]),
+              });
+            }
           }
         }
       });
     });
+
+    // Convertir en tableau de DetailedTransaction
+    const detailedTransactions: DetailedTransaction[] = Array.from(
+      transactionMap.values()
+    ).map(({ transaction, totalAmount, latestDate, accountNames }) => ({
+      transactionId: transaction.transactionId,
+      description: transaction.description,
+      date: latestDate,
+      amount: totalAmount,
+      accountName: Array.from(accountNames).join(", "),
+      accountId: transaction.accountId,
+      category,
+      subCategory: "",
+      type: transaction.type,
+    }));
 
     return detailedTransactions.sort((a, b) => {
       let comparison: number;
@@ -602,7 +781,7 @@ export default function Home() {
     description: string,
     date: string,
     slaves: TransactionSlave[]
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     // Mettre à jour la transaction principale
     const updateResponse = await fetch(
       `${API_URL}/transactions/${transactionId}`,
@@ -619,7 +798,11 @@ export default function Home() {
     );
 
     if (!updateResponse.ok) {
-      throw new Error("Failed to update transaction");
+      const errorData = await updateResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.detail || "Échec de la mise à jour de la transaction",
+      };
     }
 
     // Mettre à jour les slaves transactions
@@ -643,11 +826,17 @@ export default function Home() {
     );
 
     if (!slaveUpdateResponse.ok) {
-      throw new Error("Failed to update transaction slave");
+      const errorData = await slaveUpdateResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error:
+          errorData.detail || "Échec de la mise à jour des transactions slaves",
+      };
     }
 
     // Recharger les transactions pour mettre à jour l'affichage
     await fetchTransactions();
+    return { success: true };
   };
 
   const totalRevenues = monthlySummary.revenues.reduce(
@@ -718,130 +907,43 @@ export default function Home() {
     [monthlyRangeSeries]
   );
 
-  // Calcul du patrimoine total par mois (approx) en utilisant les transactions sur les comptes réels
-  // Deux séries: bancaire (date master) et comptable (date slave)
+  // Patrimoine timeline depuis la RPC Supabase
+  // Deux séries: bancaire (soldes réels) et comptable (bancaire + CCA - PCA)
   const patrimonySeries = useMemo(() => {
-    const labels = monthlyRangeSeries.labels;
-    const n = labels.length;
-    const bankDelta = Array(n).fill(0); // Argent bancaire: basé sur la date master
-    const accountingDelta = Array(n).fill(0); // Argent comptable: basé sur la date slave
+    const monthNames = [
+      "Janvier",
+      "Février",
+      "Mars",
+      "Avril",
+      "Mai",
+      "Juin",
+      "Juillet",
+      "Août",
+      "Septembre",
+      "Octobre",
+      "Novembre",
+      "Décembre",
+    ];
 
-    // Helper pour trouver l'index du mois
-    const findMonthIndex = (year: number, month: number) => {
-      return monthlyRangeSeries.labels.findIndex((_, i) => {
-        const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
-        return d.getFullYear() === year && d.getMonth() + 1 === month;
-      });
+    if (patrimonyTimeline.length === 0) {
+      // Fallback avec les labels de monthlyRangeSeries si pas encore chargé
+      return {
+        labels: monthlyRangeSeries.labels,
+        bankPatrimony: monthlyRangeSeries.labels.map(() => 0),
+        accountingPatrimony: monthlyRangeSeries.labels.map(() => 0),
+      };
+    }
+
+    return {
+      labels: patrimonyTimeline.map((p) => {
+        const d = new Date(p.month_date);
+        const monthName = monthNames[d.getMonth()];
+        return `${monthName.substring(0, 3)} ${d.getFullYear()}`;
+      }),
+      bankPatrimony: patrimonyTimeline.map((p) => p.bank_patrimony),
+      accountingPatrimony: patrimonyTimeline.map((p) => p.accounting_patrimony),
     };
-
-    transactions.forEach((t) => {
-      const masterAccount = accounts.find(
-        (acc) => acc.account_id === t.accountId
-      );
-
-      // 1. Argent bancaire: on utilise la date master pour les transactions sur comptes réels
-      if (masterAccount && masterAccount.is_real) {
-        const { year: ty, month: tm } = extractYearMonth(t.date);
-        const idx = findMonthIndex(ty, tm);
-        if (idx !== -1) {
-          const isRevenue = t.type.toLowerCase() === "credit";
-          const isExpense = t.type.toLowerCase() === "debit";
-          const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
-          bankDelta[idx] += delta;
-        }
-      }
-
-      // 2. Pour les slaves sur comptes réels, ajouter aussi à bankDelta (date master)
-      t.TransactionsSlaves.forEach((slave) => {
-        if (slave.slaveAccountIsReal === true) {
-          // Pour l'argent bancaire: utiliser la date MASTER
-          const { year: ty, month: tm } = extractYearMonth(t.date);
-          const idx = findMonthIndex(ty, tm);
-          if (idx !== -1) {
-            const isRevenue = slave.type.toLowerCase() === "credit";
-            const isExpense = slave.type.toLowerCase() === "debit";
-            const delta = isRevenue
-              ? slave.amount
-              : isExpense
-                ? -slave.amount
-                : 0;
-            bankDelta[idx] += delta;
-          }
-        }
-      });
-
-      // 3. Argent comptable: basé sur les dates des slaves
-      if (masterAccount && masterAccount.is_real) {
-        // Si pas de slaves, utiliser la date master pour le comptable aussi
-        if (t.TransactionsSlaves.length === 0) {
-          const { year: ty, month: tm } = extractYearMonth(t.date);
-          const idx = findMonthIndex(ty, tm);
-          if (idx !== -1) {
-            const isRevenue = t.type.toLowerCase() === "credit";
-            const isExpense = t.type.toLowerCase() === "debit";
-            const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
-            accountingDelta[idx] += delta;
-          }
-        } else {
-          // Avec des slaves: utiliser la date de chaque slave pour l'impact comptable
-          t.TransactionsSlaves.forEach((slave) => {
-            const { year: sy, month: sm } = extractYearMonth(slave.date);
-            const idx = findMonthIndex(sy, sm);
-            if (idx !== -1) {
-              if (slave.slaveAccountIsReal === true) {
-                // Slave sur compte réel: credit = +patrimoine, debit = -patrimoine
-                const isRevenue = slave.type.toLowerCase() === "credit";
-                const isExpense = slave.type.toLowerCase() === "debit";
-                const delta = isRevenue
-                  ? slave.amount
-                  : isExpense
-                    ? -slave.amount
-                    : 0;
-                accountingDelta[idx] += delta;
-              } else {
-                // Slave sur compte virtuel: credit = charge = -patrimoine, debit = revenu = +patrimoine
-                const isRevenue = slave.type.toLowerCase() === "debit";
-                const isExpense = slave.type.toLowerCase() === "credit";
-                const delta = isRevenue
-                  ? slave.amount
-                  : isExpense
-                    ? -slave.amount
-                    : 0;
-                accountingDelta[idx] += delta;
-              }
-            }
-          });
-        }
-      }
-    });
-
-    // cumulative pour bancaire
-    const bankCumulative = bankDelta.map((_, i) =>
-      bankDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
-    );
-    const lastBankCum = bankCumulative[n - 1] || 0;
-    const bankBaseline = totalAssets - lastBankCum;
-    const bankPatrimony = bankCumulative.map((c) => bankBaseline + c);
-
-    // cumulative pour comptable
-    const accountingCumulative = accountingDelta.map((_, i) =>
-      accountingDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
-    );
-    const lastAccountingCum = accountingCumulative[n - 1] || 0;
-    const accountingBaseline = totalAssets - lastAccountingCum;
-    const accountingPatrimony = accountingCumulative.map(
-      (c) => accountingBaseline + c
-    );
-
-    return { labels, bankPatrimony, accountingPatrimony };
-  }, [
-    transactions,
-    monthlyRangeSeries,
-    selectedMonth,
-    selectedYear,
-    totalAssets,
-    accounts,
-  ]);
+  }, [patrimonyTimeline, monthlyRangeSeries.labels]);
 
   const patrimonyChartData = useMemo(
     () => ({
@@ -1121,33 +1223,76 @@ export default function Home() {
                         </p>
                       </div>
 
-                      {expandedTransit === "cca" && (
+                      {expandedTransit === "cca" && groupedDeferredAccounts && (
                         <div className="mt-2 ml-2 space-y-1">
-                          {deferredAccounts.prepaid_expenses.details.map(
-                            (detail) => (
-                              <div
-                                key={detail.slave_id}
-                                className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-700 truncate">
-                                    {detail.description}
-                                  </p>
-                                  <p className="text-gray-500">
-                                    {detail.account_name} -{" "}
-                                    {new Date(
-                                      detail.slave_date
-                                    ).toLocaleDateString("fr-FR")}
-                                  </p>
+                          {groupedDeferredAccounts.prepaid_expenses.map(
+                            (cat) => {
+                              const catKey = `cca-${cat.category}`;
+                              const isExpanded =
+                                expandedDeferredCategories.has(catKey);
+                              return (
+                                <div key={cat.category}>
+                                  <div
+                                    className="flex justify-between items-center p-2 bg-orange-100 rounded text-xs font-medium cursor-pointer hover:bg-orange-200 transition-colors"
+                                    onClick={() => {
+                                      const newSet = new Set(
+                                        expandedDeferredCategories
+                                      );
+                                      if (isExpanded) {
+                                        newSet.delete(catKey);
+                                      } else {
+                                        newSet.add(catKey);
+                                      }
+                                      setExpandedDeferredCategories(newSet);
+                                    }}
+                                  >
+                                    <span className="text-orange-800">
+                                      {cat.category} ({cat.transactions.length})
+                                    </span>
+                                    <span className="text-orange-600">
+                                      {cat.total_amount.toLocaleString(
+                                        "fr-FR",
+                                        {
+                                          style: "currency",
+                                          currency: "EUR",
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
+                                  {isExpanded && (
+                                    <div className="ml-2 mt-1 space-y-1">
+                                      {cat.transactions.map((tx) => (
+                                        <div
+                                          key={tx.master_id}
+                                          className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-gray-700 truncate">
+                                              {tx.description}
+                                            </p>
+                                            <p className="text-gray-500">
+                                              {tx.account_names.join(", ")} -{" "}
+                                              {new Date(
+                                                tx.latest_slave_date
+                                              ).toLocaleDateString("fr-FR")}
+                                            </p>
+                                          </div>
+                                          <p className="font-semibold text-orange-600 ml-2">
+                                            {tx.total_amount.toLocaleString(
+                                              "fr-FR",
+                                              {
+                                                style: "currency",
+                                                currency: "EUR",
+                                              }
+                                            )}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="font-semibold text-orange-600 ml-2">
-                                  {detail.amount.toLocaleString("fr-FR", {
-                                    style: "currency",
-                                    currency: "EUR",
-                                  })}
-                                </p>
-                              </div>
-                            )
+                              );
+                            }
                           )}
                         </div>
                       )}
@@ -1182,33 +1327,76 @@ export default function Home() {
                         </p>
                       </div>
 
-                      {expandedTransit === "pca" && (
+                      {expandedTransit === "pca" && groupedDeferredAccounts && (
                         <div className="mt-2 ml-2 space-y-1">
-                          {deferredAccounts.deferred_revenue.details.map(
-                            (detail) => (
-                              <div
-                                key={detail.slave_id}
-                                className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-700 truncate">
-                                    {detail.description}
-                                  </p>
-                                  <p className="text-gray-500">
-                                    {detail.account_name} -{" "}
-                                    {new Date(
-                                      detail.slave_date
-                                    ).toLocaleDateString("fr-FR")}
-                                  </p>
+                          {groupedDeferredAccounts.deferred_revenue.map(
+                            (cat) => {
+                              const catKey = `pca-${cat.category}`;
+                              const isExpanded =
+                                expandedDeferredCategories.has(catKey);
+                              return (
+                                <div key={cat.category}>
+                                  <div
+                                    className="flex justify-between items-center p-2 bg-blue-100 rounded text-xs font-medium cursor-pointer hover:bg-blue-200 transition-colors"
+                                    onClick={() => {
+                                      const newSet = new Set(
+                                        expandedDeferredCategories
+                                      );
+                                      if (isExpanded) {
+                                        newSet.delete(catKey);
+                                      } else {
+                                        newSet.add(catKey);
+                                      }
+                                      setExpandedDeferredCategories(newSet);
+                                    }}
+                                  >
+                                    <span className="text-blue-800">
+                                      {cat.category} ({cat.transactions.length})
+                                    </span>
+                                    <span className="text-blue-600">
+                                      {cat.total_amount.toLocaleString(
+                                        "fr-FR",
+                                        {
+                                          style: "currency",
+                                          currency: "EUR",
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
+                                  {isExpanded && (
+                                    <div className="ml-2 mt-1 space-y-1">
+                                      {cat.transactions.map((tx) => (
+                                        <div
+                                          key={tx.master_id}
+                                          className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-gray-700 truncate">
+                                              {tx.description}
+                                            </p>
+                                            <p className="text-gray-500">
+                                              {tx.account_names.join(", ")} -{" "}
+                                              {new Date(
+                                                tx.latest_slave_date
+                                              ).toLocaleDateString("fr-FR")}
+                                            </p>
+                                          </div>
+                                          <p className="font-semibold text-blue-600 ml-2">
+                                            {tx.total_amount.toLocaleString(
+                                              "fr-FR",
+                                              {
+                                                style: "currency",
+                                                currency: "EUR",
+                                              }
+                                            )}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="font-semibold text-blue-600 ml-2">
-                                  {detail.amount.toLocaleString("fr-FR", {
-                                    style: "currency",
-                                    currency: "EUR",
-                                  })}
-                                </p>
-                              </div>
-                            )
+                              );
+                            }
                           )}
                         </div>
                       )}

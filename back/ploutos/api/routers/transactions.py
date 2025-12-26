@@ -173,12 +173,14 @@ async def update_transaction_slaves(
         )
         if not transaction.data:
             raise HTTPException(status_code=404, detail="Transaction not found")
-        elif transaction.data[0]["amount"] != sum(
-            [slave.amount for slave in slaves_update.slaves]
-        ):
+
+        master_amount = round(transaction.data[0]["amount"], 2)
+        slaves_total = round(sum([slave.amount for slave in slaves_update.slaves]), 2)
+        if master_amount != slaves_total:
+            difference = abs(master_amount - slaves_total)
             raise HTTPException(
                 status_code=400,
-                detail="Transaction amount does not match slaves amounts",
+                detail=f"Le montant des slaves ({slaves_total:.2f}€) ne correspond pas au montant de la transaction ({master_amount:.2f}€). Différence: {difference:.2f}€",
             )
 
         # Supprimer tous les slaves existants pour cette transaction
