@@ -28,14 +28,14 @@ describe("smoothingUtils", () => {
       expect(result.error).toContain("minimum 2");
     });
 
-    it("should reject months greater than 24", () => {
+    it("should reject months greater than 120", () => {
       const result = validateSmoothingInput({
         amount: 600,
         startDate: "2025-01-15",
-        months: 25,
+        months: 121,
       });
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain("24");
+      expect(result.error).toContain("120");
     });
 
     it("should reject non-integer months", () => {
@@ -156,15 +156,15 @@ describe("smoothingUtils", () => {
       );
     });
 
-    it("should handle 24 months (maximum)", () => {
+    it("should handle 120 months (maximum)", () => {
       const result = calculateSmoothedTransactions({
-        amount: 2400,
+        amount: 12000,
         startDate: "2025-01-15",
-        months: 24,
+        months: 120,
       });
-      expect(result).toHaveLength(24);
+      expect(result).toHaveLength(120);
       expect(result.reduce((sum, item) => sum + item.amount, 0)).toBeCloseTo(
-        2400,
+        12000,
         2
       );
     });

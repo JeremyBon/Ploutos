@@ -177,18 +177,38 @@ export default function Transactions() {
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [filterIsReal, setFilterIsReal] = useState<"all" | "real" | "virtual">(
     "all"
   );
   const [filterCategory, setFilterCategory] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  const [filterTransactionType, setFilterTransactionType] = useState<
+    "all" | "debit" | "credit"
+  >("all");
+  const [filterTransfer, setFilterTransfer] = useState<
+    "all" | "transfers" | "non-transfers"
+  >("all");
+  const [debouncedAmountMin, setDebouncedAmountMin] = useState<string>("");
+  const [debouncedAmountMax, setDebouncedAmountMax] = useState<string>("");
 
   // Debounce search input (150ms)
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 150);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Debounce amount filters (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedAmountMin(amountMin), 300);
+    return () => clearTimeout(timer);
+  }, [amountMin]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedAmountMax(amountMax), 300);
+    return () => clearTimeout(timer);
+  }, [amountMax]);
 
   // Pagination
   const PAGE_SIZE = 100;
@@ -259,6 +279,8 @@ export default function Transactions() {
     if (filterIsReal !== "all") count++;
     if (filterCategory) count++;
     if (searchQuery) count++;
+    if (filterTransactionType !== "all") count++;
+    if (filterTransfer !== "all") count++;
     return count;
   }, [
     selectedAccount,
@@ -270,6 +292,29 @@ export default function Transactions() {
     filterIsReal,
     filterCategory,
     searchQuery,
+    filterTransactionType,
+    filterTransfer,
+  ]);
+
+  // Count active advanced filters (for badge)
+  const activeAdvancedFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filterIsReal !== "all") count++;
+    if (filterCategory) count++;
+    if (selectedAccount) count++;
+    if (amountMin || amountMax) count++;
+    if (filterTransfer !== "all") count++;
+    if (sortBy !== "date" || sortDirection !== "desc") count++;
+    return count;
+  }, [
+    filterIsReal,
+    filterCategory,
+    selectedAccount,
+    amountMin,
+    amountMax,
+    filterTransfer,
+    sortBy,
+    sortDirection,
   ]);
 
   const resetFilters = () => {
@@ -285,6 +330,8 @@ export default function Transactions() {
     setFilterIsReal("all");
     setFilterCategory("");
     setSearchQuery("");
+    setFilterTransactionType("all");
+    setFilterTransfer("all");
   };
 
   const fetchAccounts = useCallback(async () => {
@@ -338,6 +385,26 @@ export default function Transactions() {
         params.append("description_filter", debouncedSearch.trim());
       }
 
+      // Amount filters (server-side for proper pagination)
+      if (debouncedAmountMin) {
+        params.append("amount_min", debouncedAmountMin);
+      }
+      if (debouncedAmountMax) {
+        params.append("amount_max", debouncedAmountMax);
+      }
+
+      // Transaction type filter
+      if (filterTransactionType !== "all") {
+        params.append("transaction_type", filterTransactionType);
+      }
+
+      // Transfer filter
+      if (filterTransfer === "transfers") {
+        params.append("is_transfer", "true");
+      } else if (filterTransfer === "non-transfers") {
+        params.append("is_transfer", "false");
+      }
+
       const response = await fetch(
         `${API_URL}/transactions?${params.toString()}`,
         {
@@ -375,6 +442,10 @@ export default function Transactions() {
     customDateFrom,
     customDateTo,
     debouncedSearch,
+    debouncedAmountMin,
+    debouncedAmountMax,
+    filterTransactionType,
+    filterTransfer,
   ]);
 
   // Reset page when filters change
@@ -389,6 +460,10 @@ export default function Transactions() {
     filterIsReal,
     filterCategory,
     debouncedSearch,
+    debouncedAmountMin,
+    debouncedAmountMax,
+    filterTransactionType,
+    filterTransfer,
   ]);
 
   useEffect(() => {
@@ -404,24 +479,9 @@ export default function Transactions() {
   }, [fetchAccounts, fetchTransactions]);
 
   const sortedTransactions = useMemo(() => {
-    let filtered = [...transactions];
-
-    // Filtre par montant
-    if (amountMin !== "") {
-      const min = parseFloat(amountMin);
-      if (!isNaN(min)) {
-        filtered = filtered.filter((t) => t.amount >= min);
-      }
-    }
-    if (amountMax !== "") {
-      const max = parseFloat(amountMax);
-      if (!isNaN(max)) {
-        filtered = filtered.filter((t) => t.amount <= max);
-      }
-    }
-
-    // Tri
-    return filtered.sort((a, b) => {
+    // Amount filtering is now done server-side for proper pagination
+    // Only sorting is done client-side
+    return [...transactions].sort((a, b) => {
       let comparison = 0;
       if (sortBy === "date") {
         comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -430,7 +490,7 @@ export default function Transactions() {
       }
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [transactions, sortBy, sortDirection, amountMin, amountMax]);
+  }, [transactions, sortBy, sortDirection]);
 
   const handleViewDetails = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -453,7 +513,7 @@ export default function Transactions() {
       date: string;
       accountId: string;
     }[]
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     // Mettre à jour la transaction principale
     const response = await fetch(`${API_URL}/transactions/${transactionId}`, {
       method: "PUT",
@@ -468,7 +528,11 @@ export default function Transactions() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to update transaction");
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.detail || "Échec de la mise à jour de la transaction",
+      };
     }
 
     // Mettre à jour les slaves
@@ -494,13 +558,16 @@ export default function Transactions() {
 
     if (!slavesResponse.ok) {
       const errorData = await slavesResponse.json().catch(() => ({}));
-      throw new Error(
-        errorData.detail || "Failed to update transaction slaves"
-      );
+      return {
+        success: false,
+        error:
+          errorData.detail || "Échec de la mise à jour des transactions slaves",
+      };
     }
 
     // Recharger les transactions
     await fetchTransactions();
+    return { success: true };
   };
 
   return (
@@ -544,180 +611,48 @@ export default function Transactions() {
 
           {/* Filter Content - Collapsible */}
           <div
-            className={`transition-all duration-300 ease-in-out ${isFiltersOpen ? "max-h-[700px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
+            className={`transition-all duration-300 ease-in-out ${isFiltersOpen ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"}`}
           >
             <div className="px-5 pb-5 border-t border-gray-100">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-5">
+              {/* Main Filters - Always visible */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-5">
                 {/* Search Input */}
-                <div className="lg:col-span-3 pb-4 border-b border-gray-100">
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <SearchIcon />
+                    Rechercher
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Rechercher dans les descriptions..."
+                      className="w-full px-3 py-2.5 pl-10 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                       <SearchIcon />
-                      Rechercher
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Rechercher dans les descriptions..."
-                        className="w-full px-3 py-2.5 pl-10 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      />
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <SearchIcon />
-                      </div>
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery("")}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Account Filters Row */}
-                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-gray-100">
-                  {/* Type de compte (is_real) */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <svg
-                        className="w-4 h-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      Type de compte
-                    </label>
-                    <div className="flex gap-1">
-                      {[
-                        { value: "all", label: "Tous" },
-                        { value: "real", label: "Réels" },
-                        { value: "virtual", label: "Virtuels" },
-                      ].map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() =>
-                            setFilterIsReal(
-                              option.value as "all" | "real" | "virtual"
-                            )
-                          }
-                          className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                            filterIsReal === option.value
-                              ? "bg-blue-600 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
                         >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Catégorie */}
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <svg
-                        className="w-4 h-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                        />
-                      </svg>
-                      Catégorie
-                    </label>
-                    <select
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    >
-                      <option value="">Toutes les catégories</option>
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Compte */}
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="account"
-                      className="flex items-center gap-2 text-sm font-medium text-gray-700"
-                    >
-                      <svg
-                        className="w-4 h-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                        />
-                      </svg>
-                      Compte
-                      {filteredAccounts.length !== accounts.length && (
-                        <span className="text-xs text-blue-600">
-                          ({filteredAccounts.length}/{accounts.length})
-                        </span>
-                      )}
-                    </label>
-                    <select
-                      id="account"
-                      value={selectedAccount}
-                      onChange={(e) => setSelectedAccount(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    >
-                      <option value="" className="text-gray-600 font-medium">
-                        Tous les comptes
-                      </option>
-                      {Object.entries(groupedAccounts).map(
-                        ([category, categoryAccounts]) => (
-                          <optgroup key={category} label={category}>
-                            {categoryAccounts.map((account) => (
-                              <option
-                                key={account.accountId}
-                                value={account.accountId}
-                              >
-                                {account.name}{" "}
-                                {account.is_real ? "" : "(virtuel)"}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )
-                      )}
-                    </select>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -770,65 +705,321 @@ export default function Transactions() {
                   </div>
                 </div>
 
-                {/* Amount Filter */}
+                {/* Transaction Type Filter */}
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <CurrencyIcon />
-                    Montant
+                    <svg
+                      className="w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                      />
+                    </svg>
+                    Type de transaction
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      value={amountMin}
-                      onChange={(e) => setAmountMin(e.target.value)}
-                      placeholder="Min"
-                      className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
-                    <span className="text-gray-500 text-sm">à</span>
-                    <input
-                      type="number"
-                      value={amountMax}
-                      onChange={(e) => setAmountMax(e.target.value)}
-                      placeholder="Max"
-                      className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
+                  <div className="flex gap-1">
+                    {[
+                      { value: "all", label: "Toutes" },
+                      { value: "debit", label: "Dépenses" },
+                      { value: "credit", label: "Recettes" },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() =>
+                          setFilterTransactionType(
+                            option.value as "all" | "debit" | "credit"
+                          )
+                        }
+                        className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                          filterTransactionType === option.value
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
+              </div>
 
-                {/* Sort */}
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <SortIcon />
-                    Trier par
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={sortBy}
-                      onChange={(e) =>
-                        setSortBy(e.target.value as "date" | "amount")
-                      }
-                      className="flex-1 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    >
-                      <option value="date">Date</option>
-                      <option value="amount">Montant</option>
-                    </select>
-                    <button
-                      onClick={() =>
-                        setSortDirection(
-                          sortDirection === "asc" ? "desc" : "asc"
-                        )
-                      }
-                      className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                        sortDirection === "desc"
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                      }`}
-                      title={
-                        sortDirection === "asc" ? "Croissant" : "Décroissant"
-                      }
-                    >
-                      {sortDirection === "asc" ? "↑ Asc" : "↓ Desc"}
-                    </button>
+              {/* Advanced Filters Toggle */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() =>
+                    setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)
+                  }
+                  className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 transition-transform duration-200 ${isAdvancedFiltersOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                  Filtres avancés
+                  {activeAdvancedFiltersCount > 0 && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                      {activeAdvancedFiltersCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Advanced Filters Content */}
+                <div
+                  className={`transition-all duration-300 ease-in-out overflow-hidden ${isAdvancedFiltersOpen ? "max-h-[500px] opacity-100 mt-4" : "max-h-0 opacity-0"}`}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {/* Type de compte (is_real) */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        Type de compte
+                      </label>
+                      <div className="flex gap-1">
+                        {[
+                          { value: "all", label: "Tous" },
+                          { value: "real", label: "Réels" },
+                          { value: "virtual", label: "Virtuels" },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() =>
+                              setFilterIsReal(
+                                option.value as "all" | "real" | "virtual"
+                              )
+                            }
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                              filterIsReal === option.value
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Catégorie */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                          />
+                        </svg>
+                        Catégorie
+                      </label>
+                      <select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      >
+                        <option value="">Toutes les catégories</option>
+                        {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Compte */}
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="account"
+                        className="flex items-center gap-2 text-sm font-medium text-gray-700"
+                      >
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                          />
+                        </svg>
+                        Compte
+                        {filteredAccounts.length !== accounts.length && (
+                          <span className="text-xs text-blue-600">
+                            ({filteredAccounts.length}/{accounts.length})
+                          </span>
+                        )}
+                      </label>
+                      <select
+                        id="account"
+                        value={selectedAccount}
+                        onChange={(e) => setSelectedAccount(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      >
+                        <option value="" className="text-gray-600 font-medium">
+                          Tous les comptes
+                        </option>
+                        {Object.entries(groupedAccounts).map(
+                          ([category, categoryAccounts]) => (
+                            <optgroup key={category} label={category}>
+                              {categoryAccounts.map((account) => (
+                                <option
+                                  key={account.accountId}
+                                  value={account.accountId}
+                                >
+                                  {account.name}{" "}
+                                  {account.is_real ? "" : "(virtuel)"}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )
+                        )}
+                      </select>
+                    </div>
+
+                    {/* Amount Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <CurrencyIcon />
+                        Montant
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={amountMin}
+                          onChange={(e) => setAmountMin(e.target.value)}
+                          placeholder="Min"
+                          className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                        <span className="text-gray-500 text-sm">à</span>
+                        <input
+                          type="number"
+                          value={amountMax}
+                          onChange={(e) => setAmountMax(e.target.value)}
+                          placeholder="Max"
+                          className="w-24 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Transfer Filter */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <svg
+                          className="w-4 h-4 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                          />
+                        </svg>
+                        Transferts
+                      </label>
+                      <div className="flex gap-1">
+                        {[
+                          { value: "all", label: "Tous" },
+                          { value: "transfers", label: "Transferts" },
+                          { value: "non-transfers", label: "Hors transferts" },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() =>
+                              setFilterTransfer(
+                                option.value as
+                                  | "all"
+                                  | "transfers"
+                                  | "non-transfers"
+                              )
+                            }
+                            className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                              filterTransfer === option.value
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Sort */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <SortIcon />
+                        Trier par
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          value={sortBy}
+                          onChange={(e) =>
+                            setSortBy(e.target.value as "date" | "amount")
+                          }
+                          className="flex-1 px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        >
+                          <option value="date">Date</option>
+                          <option value="amount">Montant</option>
+                        </select>
+                        <button
+                          onClick={() =>
+                            setSortDirection(
+                              sortDirection === "asc" ? "desc" : "asc"
+                            )
+                          }
+                          className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+                            sortDirection === "desc"
+                              ? "bg-blue-600 text-white border-blue-600"
+                              : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                          }`}
+                          title={
+                            sortDirection === "asc"
+                              ? "Croissant"
+                              : "Décroissant"
+                          }
+                        >
+                          {sortDirection === "asc" ? "↑ Asc" : "↓ Desc"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -892,7 +1083,7 @@ export default function Transactions() {
                           transaction.TransactionsSlaves.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {(() => {
-                                const smoothingMap = detectSmoothingGroups(
+                                const slavesWithNames =
                                   transaction.TransactionsSlaves.map((s) => ({
                                     slaveId: s.slaveId,
                                     type: s.type,
@@ -905,33 +1096,96 @@ export default function Transactions() {
                                       s.Accounts?.name ||
                                       "",
                                     slaveAccountIsReal: false,
-                                  }))
-                                );
-                                return transaction.TransactionsSlaves.map(
-                                  (slave) => {
-                                    const smoothingInfo = smoothingMap.get(
-                                      slave.slaveId
-                                    );
-                                    return (
-                                      <div
-                                        key={slave.slaveId}
-                                        className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap flex items-center gap-1"
-                                      >
-                                        {slave.slaveAccountName ||
-                                          "⚠️ Compte non récupéré"}
-                                        {smoothingInfo && (
-                                          <span
-                                            className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
-                                            title={`Fait partie d'un lissage de ${formatAmount(smoothingInfo.totalAmount)} sur ${smoothingInfo.totalMonths} mois`}
-                                          >
-                                            📊 {smoothingInfo.position}/
-                                            {smoothingInfo.totalMonths}
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
+                                  }));
+
+                                const smoothingMap =
+                                  detectSmoothingGroups(slavesWithNames);
+
+                                // Regrouper les slaves par compte
+                                const groupedByAccount = new Map<
+                                  string,
+                                  {
+                                    accountName: string;
+                                    slaves: typeof slavesWithNames;
+                                    smoothingTotalMonths?: number;
+                                    smoothingTotalAmount?: number;
                                   }
-                                );
+                                >();
+
+                                for (const slave of slavesWithNames) {
+                                  const existing = groupedByAccount.get(
+                                    slave.accountId
+                                  );
+                                  if (existing) {
+                                    existing.slaves.push(slave);
+                                  } else {
+                                    groupedByAccount.set(slave.accountId, {
+                                      accountName: slave.slaveAccountName,
+                                      slaves: [slave],
+                                    });
+                                  }
+                                }
+
+                                // Pour chaque groupe, vérifier si c'est du lissage
+                                const displayGroups: {
+                                  key: string;
+                                  accountName: string;
+                                  count: number;
+                                  isSmoothing: boolean;
+                                  totalMonths?: number;
+                                  totalAmount?: number;
+                                }[] = [];
+
+                                for (const [
+                                  accountId,
+                                  group,
+                                ] of groupedByAccount) {
+                                  const firstSlave = group.slaves[0];
+                                  const smoothingInfo = smoothingMap.get(
+                                    firstSlave.slaveId
+                                  );
+
+                                  if (
+                                    smoothingInfo &&
+                                    group.slaves.length > 1
+                                  ) {
+                                    // C'est un groupe de lissage - afficher un seul label
+                                    displayGroups.push({
+                                      key: accountId,
+                                      accountName: group.accountName,
+                                      count: group.slaves.length,
+                                      isSmoothing: true,
+                                      totalMonths: smoothingInfo.totalMonths,
+                                      totalAmount: smoothingInfo.totalAmount,
+                                    });
+                                  } else {
+                                    // Pas de lissage ou un seul slave - afficher normalement
+                                    displayGroups.push({
+                                      key: accountId,
+                                      accountName: group.accountName,
+                                      count: group.slaves.length,
+                                      isSmoothing: false,
+                                    });
+                                  }
+                                }
+
+                                return displayGroups.map((group) => (
+                                  <div
+                                    key={group.key}
+                                    className="px-2 py-1 bg-blue-100 rounded text-xs text-blue-800 border border-blue-200 whitespace-nowrap flex items-center gap-1"
+                                  >
+                                    {group.accountName ||
+                                      "⚠️ Compte non récupéré"}
+                                    {group.isSmoothing && group.totalMonths && (
+                                      <span
+                                        className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium"
+                                        title={`Lissage de ${formatAmount(group.totalAmount || 0)} sur ${group.totalMonths} mois`}
+                                      >
+                                        📊 {group.totalMonths} mois
+                                      </span>
+                                    )}
+                                  </div>
+                                ));
                               })()}
                             </div>
                           )}

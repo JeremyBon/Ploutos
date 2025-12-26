@@ -33,6 +33,11 @@ export interface Transaction {
   TransactionsSlaves?: TransactionSlave[];
 }
 
+export interface SaveResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface TransactionEditModalProps {
   isOpen: boolean;
   transaction: Transaction | null;
@@ -43,7 +48,7 @@ export interface TransactionEditModalProps {
     description: string,
     date: string,
     slaves: TransactionSlave[]
-  ) => Promise<void>;
+  ) => Promise<SaveResult>;
 }
 
 export interface SlaveTransactionRowProps {

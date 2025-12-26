@@ -19,12 +19,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-      - name: Checkout
-        if: ${{ steps.release.outputs.prs_created == 'true' }}
-        uses: actions/checkout@v4
 
-      - name: Merge Release PR
+      # Auto-merge avec --merge (pas --squash) pour conserver le commit de release
+      - name: Enable auto-merge for Release PR
         if: ${{ steps.release.outputs.prs_created == 'true' }}
-        run: gh pr merge --squash "${{ fromJSON(steps.release.outputs.pr).number }}"
+        run: gh pr merge --merge --auto "${{ fromJSON(steps.release.outputs.pr).number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Log des outputs pour debug
+      - name: Debug outputs
+        if: always()
+        run: |
+          echo "releases_created: ${{ steps.release.outputs.releases_created }}"
+          echo "prs_created: ${{ steps.release.outputs.prs_created }}"
+          echo "tag_name: ${{ steps.release.outputs.tag_name }}"

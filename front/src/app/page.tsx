@@ -80,6 +80,21 @@ interface DeferredAccounts {
   deferred_revenue: DeferredBalance;
 }
 
+interface GroupedDeferredTransaction {
+  master_id: string;
+  total_amount: number;
+  master_date: string;
+  latest_slave_date: string;
+  description: string;
+  account_names: string[];
+}
+
+interface GroupedDeferredCategory {
+  category: string;
+  total_amount: number;
+  transactions: GroupedDeferredTransaction[];
+}
+
 interface TransactionSlave {
   slaveId: string;
   type: string;
@@ -116,6 +131,14 @@ interface DetailedTransaction {
   type: string;
 }
 
+interface PatrimonyTimelineEntry {
+  month_date: string;
+  bank_patrimony: number;
+  accounting_patrimony: number;
+  cca_amount: number;
+  pca_amount: number;
+}
+
 interface MonthlySummaryItem {
   categoryKey: string;
   category: string;
@@ -138,6 +161,13 @@ interface MonthlySummary {
     year?: number;
     month?: number;
   };
+  // Pour le tooltip en mode comptable (réconciliation avec bancaire)
+  bancaireExpenses: number; // Dépenses basées sur date master
+  bancaireRevenues: number; // Revenus basés sur date master
+  ccaSortants: number; // Payés ce mois, comptabilisés plus tard
+  pcaSortants: number; // Reçus ce mois, comptabilisés plus tard
+  ccaEntrants: number; // Payés avant, comptabilisés ce mois
+  pcaEntrants: number; // Reçus avant, comptabilisés ce mois
 }
 
 export default function Home() {
@@ -149,6 +179,9 @@ export default function Home() {
   const [expandedTransit, setExpandedTransit] = useState<"cca" | "pca" | null>(
     null
   );
+  const [expandedDeferredCategories, setExpandedDeferredCategories] = useState<
+    Set<string>
+  >(new Set());
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
   const [selectedYear, setSelectedYear] = useState<number>(
@@ -166,6 +199,12 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [categoryDisplayCount, setCategoryDisplayCount] = useState<3 | 8>(3);
+  const [balanceView, setBalanceView] = useState<"bancaire" | "comptable">(
+    "comptable"
+  );
+  const [patrimonyTimeline, setPatrimonyTimeline] = useState<
+    PatrimonyTimelineEntry[]
+  >([]);
 
   const fetchAccounts = async () => {
     try {
@@ -233,6 +272,27 @@ export default function Home() {
     }
   };
 
+  const fetchPatrimonyTimeline = async () => {
+    try {
+      const pad = (n: number) => n.toString().padStart(2, "0");
+      const start = new Date(selectedYear, selectedMonth - 1 - 3, 1);
+      const end = new Date(selectedYear, selectedMonth - 1 + 2, 1);
+      const startDate = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-01`;
+      const endDate = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-01`;
+
+      const response = await fetch(
+        `${API_URL}/accounts/patrimony-timeline?start_date=${startDate}&end_date=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch patrimony timeline");
+      }
+      const data = await response.json();
+      setPatrimonyTimeline(data || []);
+    } catch (error) {
+      console.error("Error fetching patrimony timeline:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAccounts();
     fetchAllAccounts();
@@ -241,6 +301,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchTransactions();
+    fetchPatrimonyTimeline();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, selectedMonth]);
 
@@ -249,84 +310,149 @@ export default function Home() {
     const revenuesMap = new Map<string, MonthlySummaryItem>();
     const expensesMap = new Map<string, MonthlySummaryItem>();
 
-    transactions.forEach((transaction) => {
-      // Traiter les transactions slaves (détail des comptes)
-      transaction.TransactionsSlaves.forEach((slave) => {
-        // Filtrer uniquement les transactions du mois sélectionné
-        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
-          slave.date
+    // Totaux bancaires (basés sur date master) - pour le tooltip en mode comptable
+    let bancaireExpenses = 0;
+    let bancaireRevenues = 0;
+    // CCA/PCA sortants (payés ce mois, comptabilisés plus tard)
+    let ccaSortants = 0;
+    let pcaSortants = 0;
+    // CCA/PCA entrants (payés avant, comptabilisés ce mois)
+    let ccaEntrants = 0;
+    let pcaEntrants = 0;
+
+    // Calculer la fin du mois pour détecter les CCA/PCA sortants
+    const endOfSelectedMonth = new Date(selectedYear, selectedMonth, 0);
+    const endOfMonthStr = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(endOfSelectedMonth.getDate()).padStart(2, "0")}`;
+
+    // Helper pour ajouter un slave au résumé
+    const addSlaveToSummary = (
+      slave: TransactionSlave,
+      displayDate: string
+    ) => {
+      if (slave.slaveAccountIsReal !== false) return;
+
+      const accountId = slave.accountId;
+      const accountName = slave.slaveAccountName;
+      const amount = slave.amount;
+      const type = slave.type;
+
+      const account = allAccounts.find((acc) => acc.accountId === accountId);
+      const category = account?.category || "Inconnu";
+      const subCategory = account?.sub_category || "Inconnu";
+
+      const isRevenue = type.toLowerCase() === "debit";
+      const isExpense = type.toLowerCase() === "credit";
+
+      const targetMap = isRevenue
+        ? revenuesMap
+        : isExpense
+          ? expensesMap
+          : null;
+      if (!targetMap) return;
+
+      if (targetMap.has(category)) {
+        const existing = targetMap.get(category)!;
+        existing.total_amount += amount;
+        existing.transaction_count += 1;
+        if (displayDate > existing.latest_date) {
+          existing.latest_date = displayDate;
+        }
+        const existingAccount = existing.accounts.find(
+          (a) => a.accountId === accountId
         );
-        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
-        // Filtrer seulement les comptes virtuels (is_real = false)
-        if (slave.slaveAccountIsReal === false) {
-          const accountId = slave.accountId;
-          const accountName = slave.slaveAccountName;
-          const amount = slave.amount;
-          const type = slave.type;
-
-          // Récupérer les informations du compte depuis la liste de tous les comptes (incluant les virtuels)
-          const account = allAccounts.find(
-            (acc) => acc.accountId === accountId
-          );
-          const category = account?.category || "Inconnu";
-          const subCategory = account?.sub_category || "Inconnu";
-
-          // Logique de classification basée sur le type :
-          // - type "credit" = dépenses (sortie d'argent)
-          // - type "debit" = revenus (entrée d'argent)
-          const isRevenue = type.toLowerCase() === "debit"; // Débits = revenus
-          const isExpense = type.toLowerCase() === "credit"; // Crédits = dépenses
-
-          const targetMap = isRevenue
-            ? revenuesMap
-            : isExpense
-              ? expensesMap
-              : null;
-          if (!targetMap) return;
-
-          if (targetMap.has(category)) {
-            const existing = targetMap.get(category)!;
-            existing.total_amount += amount;
-            existing.transaction_count += 1;
-            if (slave.date > existing.latest_date) {
-              existing.latest_date = slave.date;
-            }
-            // Mettre à jour ou ajouter le compte dans la liste des comptes
-            const existingAccount = existing.accounts.find(
-              (a) => a.accountId === accountId
-            );
-            if (existingAccount) {
-              existingAccount.total_amount += amount;
-              existingAccount.transaction_count += 1;
-            } else {
-              existing.accounts.push({
-                accountId,
-                account_name: accountName,
-                sub_category: subCategory,
-                total_amount: amount,
-                transaction_count: 1,
-              });
-            }
-          } else {
-            targetMap.set(category, {
-              categoryKey: category,
-              category,
+        if (existingAccount) {
+          existingAccount.total_amount += amount;
+          existingAccount.transaction_count += 1;
+        } else {
+          existing.accounts.push({
+            accountId,
+            account_name: accountName,
+            sub_category: subCategory,
+            total_amount: amount,
+            transaction_count: 1,
+          });
+        }
+      } else {
+        targetMap.set(category, {
+          categoryKey: category,
+          category,
+          total_amount: amount,
+          transaction_count: 1,
+          latest_date: displayDate,
+          accounts: [
+            {
+              accountId,
+              account_name: accountName,
+              sub_category: subCategory,
               total_amount: amount,
               transaction_count: 1,
-              latest_date: slave.date,
-              accounts: [
-                {
-                  accountId,
-                  account_name: accountName,
-                  sub_category: subCategory,
-                  total_amount: amount,
-                  transaction_count: 1,
-                },
-              ],
-            });
+            },
+          ],
+        });
+      }
+    };
+
+    // Calculer les totaux bancaires et CCA/PCA sortants (toujours, pour le tooltip)
+    transactions.forEach((transaction) => {
+      const { year: masterYear, month: masterMonth } = extractYearMonth(
+        transaction.date
+      );
+      if (masterYear === selectedYear && masterMonth === selectedMonth) {
+        transaction.TransactionsSlaves.forEach((slave) => {
+          if (slave.slaveAccountIsReal !== false) return;
+          const isCredit = slave.type.toLowerCase() === "credit";
+          const isDebit = slave.type.toLowerCase() === "debit";
+          if (isCredit) bancaireExpenses += slave.amount;
+          if (isDebit) bancaireRevenues += slave.amount;
+
+          // CCA/PCA sortants: slaves avec date future (comptabilisés plus tard)
+          const slaveDate = slave.date.split(/[T ]/)[0];
+          if (slaveDate > endOfMonthStr) {
+            if (isCredit) ccaSortants += slave.amount;
+            if (isDebit) pcaSortants += slave.amount;
           }
-        }
-      });
+        });
+      }
+    });
+
+    // Calculer le résumé affiché selon le mode
+    transactions.forEach((transaction) => {
+      const { year: masterYear, month: masterMonth } = extractYearMonth(
+        transaction.date
+      );
+      const isMasterInSelectedMonth =
+        masterYear === selectedYear && masterMonth === selectedMonth;
+      const isMasterFromPreviousMonth =
+        masterYear < selectedYear ||
+        (masterYear === selectedYear && masterMonth < selectedMonth);
+
+      if (balanceView === "comptable") {
+        // Mode comptable: filtrer par date du slave
+        transaction.TransactionsSlaves.forEach((slave) => {
+          const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+            slave.date
+          );
+          if (slaveYear !== selectedYear || slaveMonth !== selectedMonth)
+            return;
+
+          // Calculer CCA/PCA entrants (payés avant, comptabilisés ce mois)
+          if (isMasterFromPreviousMonth && slave.slaveAccountIsReal === false) {
+            const isCredit = slave.type.toLowerCase() === "credit";
+            const isDebit = slave.type.toLowerCase() === "debit";
+            if (isCredit) ccaEntrants += slave.amount;
+            if (isDebit) pcaEntrants += slave.amount;
+          }
+
+          addSlaveToSummary(slave, slave.date);
+        });
+      } else {
+        // Mode bancaire: filtrer par date du master, inclure tous les slaves
+        if (!isMasterInSelectedMonth) return;
+
+        transaction.TransactionsSlaves.forEach((slave) => {
+          addSlaveToSummary(slave, transaction.date);
+        });
+      }
     });
 
     const sortFn = (a: MonthlySummaryItem, b: MonthlySummaryItem) => {
@@ -339,7 +465,6 @@ export default function Home() {
       return sortOrder === "asc" ? comparison : -comparison;
     };
 
-    // Trier également les comptes à l'intérieur de chaque catégorie
     const sortAccountsFn = (
       a: MonthlySummaryItem["accounts"][0],
       b: MonthlySummaryItem["accounts"][0]
@@ -361,6 +486,12 @@ export default function Home() {
         year: selectedYear,
         month: selectedMonth,
       },
+      bancaireExpenses,
+      bancaireRevenues,
+      ccaSortants,
+      pcaSortants,
+      ccaEntrants,
+      pcaEntrants,
     };
   }, [
     transactions,
@@ -369,12 +500,109 @@ export default function Home() {
     selectedMonth,
     sortBy,
     sortOrder,
+    balanceView,
   ]);
 
   const totalAssets = accounts.reduce(
     (sum, account) => sum + account.current_amount,
     0
   );
+
+  // Grouper les CCA/PCA par catégorie, puis par transaction
+  const groupedDeferredAccounts = useMemo(() => {
+    const groupDetailsByCategory = (
+      details: DeferredDetail[]
+    ): GroupedDeferredCategory[] => {
+      // D'abord grouper par catégorie
+      const categoryMap = new Map<
+        string,
+        {
+          category: string;
+          total_amount: number;
+          transactionMap: Map<
+            string,
+            {
+              master_id: string;
+              total_amount: number;
+              master_date: string;
+              latest_slave_date: string;
+              description: string;
+              account_names: Set<string>;
+            }
+          >;
+        }
+      >();
+
+      details.forEach((detail) => {
+        // Trouver la catégorie du compte
+        const account = allAccounts.find(
+          (acc) => acc.name === detail.account_name
+        );
+        const category = account?.category || "Inconnu";
+
+        if (!categoryMap.has(category)) {
+          categoryMap.set(category, {
+            category,
+            total_amount: 0,
+            transactionMap: new Map(),
+          });
+        }
+
+        const categoryData = categoryMap.get(category)!;
+        categoryData.total_amount += detail.amount;
+
+        // Grouper par transaction dans cette catégorie
+        if (categoryData.transactionMap.has(detail.master_id)) {
+          const existing = categoryData.transactionMap.get(detail.master_id)!;
+          existing.total_amount += detail.amount;
+          existing.account_names.add(detail.account_name);
+          if (detail.slave_date > existing.latest_slave_date) {
+            existing.latest_slave_date = detail.slave_date;
+          }
+        } else {
+          categoryData.transactionMap.set(detail.master_id, {
+            master_id: detail.master_id,
+            total_amount: detail.amount,
+            master_date: detail.master_date,
+            latest_slave_date: detail.slave_date,
+            description: detail.description,
+            account_names: new Set([detail.account_name]),
+          });
+        }
+      });
+
+      // Convertir en tableau et trier
+      return Array.from(categoryMap.values())
+        .map((cat) => ({
+          category: cat.category,
+          total_amount: cat.total_amount,
+          transactions: Array.from(cat.transactionMap.values())
+            .map((t) => ({
+              ...t,
+              account_names: Array.from(t.account_names),
+            }))
+            .sort(
+              (a, b) =>
+                new Date(a.latest_slave_date).getTime() -
+                new Date(b.latest_slave_date).getTime()
+            ),
+        }))
+        .sort((a, b) => b.total_amount - a.total_amount);
+    };
+
+    if (!deferredAccounts) return null;
+
+    return {
+      prepaid_expenses: groupDetailsByCategory(
+        deferredAccounts.prepaid_expenses.details
+      ),
+      deferred_revenue: groupDetailsByCategory(
+        deferredAccounts.deferred_revenue.details
+      ),
+      prepaid_total: deferredAccounts.prepaid_expenses.total,
+      deferred_total: deferredAccounts.deferred_revenue.total,
+    };
+  }, [deferredAccounts, allAccounts]);
 
   const getMonthName = (month: number) => {
     const months = [
@@ -395,19 +623,41 @@ export default function Home() {
   };
 
   // Fonction pour obtenir les transactions détaillées d'une catégorie
+  // Groupe par transaction et somme les montants des slaves de cette catégorie
   const getDetailedTransactionsForCategory = (
     category: string,
     type: "revenue" | "expense"
   ): DetailedTransaction[] => {
-    const detailedTransactions: DetailedTransaction[] = [];
+    // Map pour grouper par transactionId
+    const transactionMap = new Map<
+      string,
+      {
+        transaction: Transaction;
+        totalAmount: number;
+        latestDate: string;
+        accountNames: Set<string>;
+      }
+    >();
 
     transactions.forEach((transaction) => {
-      transaction.TransactionsSlaves.forEach((slave) => {
-        // Filtrer uniquement les transactions du mois sélectionné
-        const { year: slaveYear, month: slaveMonth } = extractYearMonth(
-          slave.date
+      // En mode bancaire, filtrer par date master
+      if (balanceView === "bancaire") {
+        const { year: masterYear, month: masterMonth } = extractYearMonth(
+          transaction.date
         );
-        if (slaveYear !== selectedYear || slaveMonth !== selectedMonth) return;
+        if (masterYear !== selectedYear || masterMonth !== selectedMonth)
+          return;
+      }
+
+      transaction.TransactionsSlaves.forEach((slave) => {
+        // En mode comptable, filtrer par date slave
+        if (balanceView === "comptable") {
+          const { year: slaveYear, month: slaveMonth } = extractYearMonth(
+            slave.date
+          );
+          if (slaveYear !== selectedYear || slaveMonth !== selectedMonth)
+            return;
+        }
 
         // Filtrer seulement les comptes virtuels
         if (slave.slaveAccountIsReal === false) {
@@ -427,21 +677,43 @@ export default function Home() {
             (type === "revenue" && isRevenue) ||
             (type === "expense" && isExpense)
           ) {
-            detailedTransactions.push({
-              transactionId: transaction.transactionId,
-              description: transaction.description,
-              date: slave.date,
-              amount: slave.amount,
-              accountName: slave.slaveAccountName,
-              accountId: slave.accountId,
-              category: accountCategory,
-              subCategory: account?.sub_category ?? "Inconnu",
-              type: transaction.type,
-            });
+            const slaveDate =
+              balanceView === "bancaire" ? transaction.date : slave.date;
+
+            if (transactionMap.has(transaction.transactionId)) {
+              const existing = transactionMap.get(transaction.transactionId)!;
+              existing.totalAmount += slave.amount;
+              existing.accountNames.add(slave.slaveAccountName);
+              if (slaveDate > existing.latestDate) {
+                existing.latestDate = slaveDate;
+              }
+            } else {
+              transactionMap.set(transaction.transactionId, {
+                transaction,
+                totalAmount: slave.amount,
+                latestDate: slaveDate,
+                accountNames: new Set([slave.slaveAccountName]),
+              });
+            }
           }
         }
       });
     });
+
+    // Convertir en tableau de DetailedTransaction
+    const detailedTransactions: DetailedTransaction[] = Array.from(
+      transactionMap.values()
+    ).map(({ transaction, totalAmount, latestDate, accountNames }) => ({
+      transactionId: transaction.transactionId,
+      description: transaction.description,
+      date: latestDate,
+      amount: totalAmount,
+      accountName: Array.from(accountNames).join(", "),
+      accountId: transaction.accountId,
+      category,
+      subCategory: "",
+      type: transaction.type,
+    }));
 
     return detailedTransactions.sort((a, b) => {
       let comparison: number;
@@ -509,7 +781,7 @@ export default function Home() {
     description: string,
     date: string,
     slaves: TransactionSlave[]
-  ) => {
+  ): Promise<{ success: boolean; error?: string }> => {
     // Mettre à jour la transaction principale
     const updateResponse = await fetch(
       `${API_URL}/transactions/${transactionId}`,
@@ -526,7 +798,11 @@ export default function Home() {
     );
 
     if (!updateResponse.ok) {
-      throw new Error("Failed to update transaction");
+      const errorData = await updateResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.detail || "Échec de la mise à jour de la transaction",
+      };
     }
 
     // Mettre à jour les slaves transactions
@@ -550,11 +826,17 @@ export default function Home() {
     );
 
     if (!slaveUpdateResponse.ok) {
-      throw new Error("Failed to update transaction slave");
+      const errorData = await slaveUpdateResponse.json().catch(() => ({}));
+      return {
+        success: false,
+        error:
+          errorData.detail || "Échec de la mise à jour des transactions slaves",
+      };
     }
 
     // Recharger les transactions pour mettre à jour l'affichage
     await fetchTransactions();
+    return { success: true };
   };
 
   const totalRevenues = monthlySummary.revenues.reduce(
@@ -625,71 +907,43 @@ export default function Home() {
     [monthlyRangeSeries]
   );
 
-  // Calcul du patrimoine total par mois (approx) en utilisant les transactions sur les comptes réels
+  // Patrimoine timeline depuis la RPC Supabase
+  // Deux séries: bancaire (soldes réels) et comptable (bancaire + CCA - PCA)
   const patrimonySeries = useMemo(() => {
-    // Reuse months from monthlyRangeSeries
-    const labels = monthlyRangeSeries.labels;
-    const n = labels.length;
-    const realDelta = Array(n).fill(0);
+    const monthNames = [
+      "Janvier",
+      "Février",
+      "Mars",
+      "Avril",
+      "Mai",
+      "Juin",
+      "Juillet",
+      "Août",
+      "Septembre",
+      "Octobre",
+      "Novembre",
+      "Décembre",
+    ];
 
-    // Accumuler les deltas pour les comptes réels
-    transactions.forEach((t) => {
-      // 1. Traiter la transaction master si elle est sur un compte réel
-      const masterAccount = accounts.find(
-        (acc) => acc.account_id === t.accountId
-      );
-      if (masterAccount && masterAccount.is_real) {
-        const { year: ty, month: tm } = extractYearMonth(t.date);
-        const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
-          const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
-          return d.getFullYear() === ty && d.getMonth() + 1 === tm;
-        });
-        if (idx !== -1) {
-          const isRevenue = t.type.toLowerCase() === "credit";
-          const isExpense = t.type.toLowerCase() === "debit";
-          const delta = isRevenue ? t.amount : isExpense ? -t.amount : 0;
-          realDelta[idx] += delta;
-        }
-      }
+    if (patrimonyTimeline.length === 0) {
+      // Fallback avec les labels de monthlyRangeSeries si pas encore chargé
+      return {
+        labels: monthlyRangeSeries.labels,
+        bankPatrimony: monthlyRangeSeries.labels.map(() => 0),
+        accountingPatrimony: monthlyRangeSeries.labels.map(() => 0),
+      };
+    }
 
-      // 2. Traiter les slaves sur des comptes réels
-      t.TransactionsSlaves.forEach((slave) => {
-        if (slave.slaveAccountIsReal === true) {
-          const { year: sy, month: sm } = extractYearMonth(slave.date);
-          const idx = monthlyRangeSeries.labels.findIndex((_, i) => {
-            // match by comparing year/month from labels: rebuild month objects
-            const d = new Date(selectedYear, selectedMonth - 1 - 3 + i, 1);
-            return d.getFullYear() === sy && d.getMonth() + 1 === sm;
-          });
-          if (idx === -1) return;
-          const isRevenue = slave.type.toLowerCase() === "credit";
-          const isExpense = slave.type.toLowerCase() === "debit";
-          const delta = isRevenue
-            ? slave.amount
-            : isExpense
-              ? -slave.amount
-              : 0;
-          realDelta[idx] += delta;
-        }
-      });
-    });
-
-    // cumulative
-    const cumulative = realDelta.map((_, i) =>
-      realDelta.slice(0, i + 1).reduce((a, b) => a + b, 0)
-    );
-    const lastCum = cumulative[n - 1] || 0;
-    const baseline = totalAssets - lastCum; // align last point with current totalAssets
-    const patrimony = cumulative.map((c) => baseline + c);
-    return { labels, patrimony };
-  }, [
-    transactions,
-    monthlyRangeSeries,
-    selectedMonth,
-    selectedYear,
-    totalAssets,
-    accounts,
-  ]);
+    return {
+      labels: patrimonyTimeline.map((p) => {
+        const d = new Date(p.month_date);
+        const monthName = monthNames[d.getMonth()];
+        return `${monthName.substring(0, 3)} ${d.getFullYear()}`;
+      }),
+      bankPatrimony: patrimonyTimeline.map((p) => p.bank_patrimony),
+      accountingPatrimony: patrimonyTimeline.map((p) => p.accounting_patrimony),
+    };
+  }, [patrimonyTimeline, monthlyRangeSeries.labels]);
 
   const patrimonyChartData = useMemo(
     () => ({
@@ -697,11 +951,32 @@ export default function Home() {
       datasets: [
         {
           label: "Patrimoine total",
-          data: patrimonySeries.patrimony,
+          data: patrimonySeries.bankPatrimony,
           borderColor: "#2563eb",
           backgroundColor: "rgba(37,99,235,0.1)",
           tension: 0.3,
           fill: true,
+          order: 1,
+          pointRadius: 6,
+          pointHoverRadius: 8,
+          pointBackgroundColor: "#2563eb",
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
+        },
+        {
+          label: "Patrimoine estimé",
+          data: patrimonySeries.accountingPatrimony,
+          borderColor: "#f97316",
+          backgroundColor: "rgba(249,115,22,0.1)",
+          tension: 0.3,
+          fill: false,
+          borderDash: [5, 5],
+          order: 0,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: "#f97316",
+          pointBorderColor: "#ffffff",
+          pointBorderWidth: 2,
         },
       ],
     }),
@@ -811,13 +1086,23 @@ export default function Home() {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          position: "top" as const,
+          labels: {
+            usePointStyle: true,
+            pointStyle: "circle" as const,
+          },
+        },
         tooltip: {
+          mode: "index" as const,
+          intersect: false,
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function (context: any) {
               const value = context.raw || 0;
-              return `Patrimoine: ${value.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`;
+              const label = context.dataset.label || "";
+              return `${label}: ${value.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`;
             },
           },
         },
@@ -938,33 +1223,76 @@ export default function Home() {
                         </p>
                       </div>
 
-                      {expandedTransit === "cca" && (
+                      {expandedTransit === "cca" && groupedDeferredAccounts && (
                         <div className="mt-2 ml-2 space-y-1">
-                          {deferredAccounts.prepaid_expenses.details.map(
-                            (detail) => (
-                              <div
-                                key={detail.slave_id}
-                                className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-700 truncate">
-                                    {detail.description}
-                                  </p>
-                                  <p className="text-gray-500">
-                                    {detail.account_name} -{" "}
-                                    {new Date(
-                                      detail.slave_date
-                                    ).toLocaleDateString("fr-FR")}
-                                  </p>
+                          {groupedDeferredAccounts.prepaid_expenses.map(
+                            (cat) => {
+                              const catKey = `cca-${cat.category}`;
+                              const isExpanded =
+                                expandedDeferredCategories.has(catKey);
+                              return (
+                                <div key={cat.category}>
+                                  <div
+                                    className="flex justify-between items-center p-2 bg-orange-100 rounded text-xs font-medium cursor-pointer hover:bg-orange-200 transition-colors"
+                                    onClick={() => {
+                                      const newSet = new Set(
+                                        expandedDeferredCategories
+                                      );
+                                      if (isExpanded) {
+                                        newSet.delete(catKey);
+                                      } else {
+                                        newSet.add(catKey);
+                                      }
+                                      setExpandedDeferredCategories(newSet);
+                                    }}
+                                  >
+                                    <span className="text-orange-800">
+                                      {cat.category} ({cat.transactions.length})
+                                    </span>
+                                    <span className="text-orange-600">
+                                      {cat.total_amount.toLocaleString(
+                                        "fr-FR",
+                                        {
+                                          style: "currency",
+                                          currency: "EUR",
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
+                                  {isExpanded && (
+                                    <div className="ml-2 mt-1 space-y-1">
+                                      {cat.transactions.map((tx) => (
+                                        <div
+                                          key={tx.master_id}
+                                          className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-gray-700 truncate">
+                                              {tx.description}
+                                            </p>
+                                            <p className="text-gray-500">
+                                              {tx.account_names.join(", ")} -{" "}
+                                              {new Date(
+                                                tx.latest_slave_date
+                                              ).toLocaleDateString("fr-FR")}
+                                            </p>
+                                          </div>
+                                          <p className="font-semibold text-orange-600 ml-2">
+                                            {tx.total_amount.toLocaleString(
+                                              "fr-FR",
+                                              {
+                                                style: "currency",
+                                                currency: "EUR",
+                                              }
+                                            )}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="font-semibold text-orange-600 ml-2">
-                                  {detail.amount.toLocaleString("fr-FR", {
-                                    style: "currency",
-                                    currency: "EUR",
-                                  })}
-                                </p>
-                              </div>
-                            )
+                              );
+                            }
                           )}
                         </div>
                       )}
@@ -999,33 +1327,76 @@ export default function Home() {
                         </p>
                       </div>
 
-                      {expandedTransit === "pca" && (
+                      {expandedTransit === "pca" && groupedDeferredAccounts && (
                         <div className="mt-2 ml-2 space-y-1">
-                          {deferredAccounts.deferred_revenue.details.map(
-                            (detail) => (
-                              <div
-                                key={detail.slave_id}
-                                className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-700 truncate">
-                                    {detail.description}
-                                  </p>
-                                  <p className="text-gray-500">
-                                    {detail.account_name} -{" "}
-                                    {new Date(
-                                      detail.slave_date
-                                    ).toLocaleDateString("fr-FR")}
-                                  </p>
+                          {groupedDeferredAccounts.deferred_revenue.map(
+                            (cat) => {
+                              const catKey = `pca-${cat.category}`;
+                              const isExpanded =
+                                expandedDeferredCategories.has(catKey);
+                              return (
+                                <div key={cat.category}>
+                                  <div
+                                    className="flex justify-between items-center p-2 bg-blue-100 rounded text-xs font-medium cursor-pointer hover:bg-blue-200 transition-colors"
+                                    onClick={() => {
+                                      const newSet = new Set(
+                                        expandedDeferredCategories
+                                      );
+                                      if (isExpanded) {
+                                        newSet.delete(catKey);
+                                      } else {
+                                        newSet.add(catKey);
+                                      }
+                                      setExpandedDeferredCategories(newSet);
+                                    }}
+                                  >
+                                    <span className="text-blue-800">
+                                      {cat.category} ({cat.transactions.length})
+                                    </span>
+                                    <span className="text-blue-600">
+                                      {cat.total_amount.toLocaleString(
+                                        "fr-FR",
+                                        {
+                                          style: "currency",
+                                          currency: "EUR",
+                                        }
+                                      )}
+                                    </span>
+                                  </div>
+                                  {isExpanded && (
+                                    <div className="ml-2 mt-1 space-y-1">
+                                      {cat.transactions.map((tx) => (
+                                        <div
+                                          key={tx.master_id}
+                                          className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
+                                        >
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-gray-700 truncate">
+                                              {tx.description}
+                                            </p>
+                                            <p className="text-gray-500">
+                                              {tx.account_names.join(", ")} -{" "}
+                                              {new Date(
+                                                tx.latest_slave_date
+                                              ).toLocaleDateString("fr-FR")}
+                                            </p>
+                                          </div>
+                                          <p className="font-semibold text-blue-600 ml-2">
+                                            {tx.total_amount.toLocaleString(
+                                              "fr-FR",
+                                              {
+                                                style: "currency",
+                                                currency: "EUR",
+                                              }
+                                            )}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="font-semibold text-blue-600 ml-2">
-                                  {detail.amount.toLocaleString("fr-FR", {
-                                    style: "currency",
-                                    currency: "EUR",
-                                  })}
-                                </p>
-                              </div>
-                            )
+                              );
+                            }
                           )}
                         </div>
                       )}
@@ -1117,6 +1488,30 @@ export default function Home() {
                 >
                   Aujourd&apos;hui
                 </button>
+
+                {/* Balance View Toggle */}
+                <div className="flex gap-1 ml-4 bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setBalanceView("comptable")}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      balanceView === "comptable"
+                        ? "bg-white text-gray-800 shadow-sm font-medium"
+                        : "text-gray-600 hover:text-gray-800"
+                    }`}
+                  >
+                    Comptable
+                  </button>
+                  <button
+                    onClick={() => setBalanceView("bancaire")}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      balanceView === "bancaire"
+                        ? "bg-white text-gray-800 shadow-sm font-medium"
+                        : "text-gray-600 hover:text-gray-800"
+                    }`}
+                  >
+                    Bancaire
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1175,11 +1570,79 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     Revenus
                   </h3>
-                  <div className="text-2xl font-bold text-green-600">
-                    {totalRevenues.toLocaleString("fr-FR", {
-                      style: "currency",
-                      currency: "EUR",
-                    })}
+                  <div className="text-right">
+                    {balanceView === "comptable" ? (
+                      <div className="group relative inline-block">
+                        <div className="text-2xl font-bold text-green-600 cursor-help">
+                          {totalRevenues.toLocaleString("fr-FR", {
+                            style: "currency",
+                            currency: "EUR",
+                          })}
+                          {(monthlySummary.pcaSortants > 0 ||
+                            monthlySummary.pcaEntrants > 0) && (
+                            <span className="ml-1 text-sm text-gray-400">
+                              ⓘ
+                            </span>
+                          )}
+                        </div>
+                        {(monthlySummary.pcaSortants > 0 ||
+                          monthlySummary.pcaEntrants > 0) && (
+                          <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 shadow-lg whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="flex justify-between gap-4">
+                                <span>Bancaire ce mois:</span>
+                                <span>
+                                  {monthlySummary.bancaireRevenues.toLocaleString(
+                                    "fr-FR",
+                                    { style: "currency", currency: "EUR" }
+                                  )}
+                                </span>
+                              </div>
+                              {monthlySummary.pcaSortants > 0 && (
+                                <div className="flex justify-between gap-4 text-red-300">
+                                  <span>- Comptabilisés plus tard:</span>
+                                  <span>
+                                    -
+                                    {monthlySummary.pcaSortants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {monthlySummary.pcaEntrants > 0 && (
+                                <div className="flex justify-between gap-4 text-blue-300">
+                                  <span>+ Mois précédents:</span>
+                                  <span>
+                                    +
+                                    {monthlySummary.pcaEntrants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="border-t border-gray-600 pt-1 flex justify-between gap-4 font-medium">
+                                <span>= Total comptable:</span>
+                                <span>
+                                  {totalRevenues.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-2xl font-bold text-green-600">
+                        {totalRevenues.toLocaleString("fr-FR", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1280,12 +1743,81 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     Dépenses
                   </h3>
-                  <div className="text-2xl font-bold text-red-600">
-                    -
-                    {totalExpenses.toLocaleString("fr-FR", {
-                      style: "currency",
-                      currency: "EUR",
-                    })}
+                  <div className="text-right">
+                    {balanceView === "comptable" ? (
+                      <div className="group relative inline-block">
+                        <div className="text-2xl font-bold text-red-600 cursor-help">
+                          -
+                          {totalExpenses.toLocaleString("fr-FR", {
+                            style: "currency",
+                            currency: "EUR",
+                          })}
+                          {(monthlySummary.ccaSortants > 0 ||
+                            monthlySummary.ccaEntrants > 0) && (
+                            <span className="ml-1 text-sm text-gray-400">
+                              ⓘ
+                            </span>
+                          )}
+                        </div>
+                        {(monthlySummary.ccaSortants > 0 ||
+                          monthlySummary.ccaEntrants > 0) && (
+                          <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-10 bg-gray-800 text-white text-xs rounded-lg p-3 shadow-lg whitespace-nowrap">
+                            <div className="space-y-1">
+                              <div className="flex justify-between gap-4">
+                                <span>Bancaire ce mois:</span>
+                                <span>
+                                  {monthlySummary.bancaireExpenses.toLocaleString(
+                                    "fr-FR",
+                                    { style: "currency", currency: "EUR" }
+                                  )}
+                                </span>
+                              </div>
+                              {monthlySummary.ccaSortants > 0 && (
+                                <div className="flex justify-between gap-4 text-red-300">
+                                  <span>- Comptabilisés plus tard:</span>
+                                  <span>
+                                    -
+                                    {monthlySummary.ccaSortants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              {monthlySummary.ccaEntrants > 0 && (
+                                <div className="flex justify-between gap-4 text-orange-300">
+                                  <span>+ Mois précédents:</span>
+                                  <span>
+                                    +
+                                    {monthlySummary.ccaEntrants.toLocaleString(
+                                      "fr-FR",
+                                      { style: "currency", currency: "EUR" }
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="border-t border-gray-600 pt-1 flex justify-between gap-4 font-medium">
+                                <span>= Total comptable:</span>
+                                <span>
+                                  {totalExpenses.toLocaleString("fr-FR", {
+                                    style: "currency",
+                                    currency: "EUR",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-2xl font-bold text-red-600">
+                        -
+                        {totalExpenses.toLocaleString("fr-FR", {
+                          style: "currency",
+                          currency: "EUR",
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1468,9 +2000,8 @@ export default function Home() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
-                  Patrimoine total (historique)
+                  Historique du patrimoine
                 </h3>
-                <div className="text-sm text-gray-500">Point par mois</div>
               </div>
               <div style={{ width: "100%", height: 260 }}>
                 <div className="w-full h-full">
