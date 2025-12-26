@@ -29,10 +29,10 @@ export function validateSmoothingInput(
     };
   }
 
-  if (months > 24) {
+  if (months > 120) {
     return {
       isValid: false,
-      error: "Le nombre de mois ne peut pas depasser 24",
+      error: "Le nombre de mois ne peut pas depasser 120",
     };
   }
 

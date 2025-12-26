@@ -135,13 +135,13 @@ export default function SmoothingModal({
               htmlFor="smoothing-months"
               className="block text-sm font-medium text-gray-700 mb-2"
             >
-              Nombre de mois (2-24)
+              Nombre de mois (2-120)
             </label>
             <input
               id="smoothing-months"
               type="number"
               min={2}
-              max={24}
+              max={120}
               value={months}
               onChange={(e) => setMonths(parseInt(e.target.value) || 2)}
               className="w-full px-3 py-2 border-2 border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-800 font-medium"
