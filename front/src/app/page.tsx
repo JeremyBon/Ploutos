@@ -225,7 +225,7 @@ export default function Home() {
         throw new Error("Failed to fetch transactions");
       }
       const data = await response.json();
-      setTransactions(data);
+      setTransactions(data.data || []);
     } catch (error) {
       console.error("Error fetching transactions:", error);
     } finally {

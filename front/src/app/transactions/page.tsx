@@ -104,6 +104,22 @@ const ResetIcon = () => (
   </svg>
 );
 
+const SearchIcon = () => (
+  <svg
+    className="w-4 h-4 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
+  </svg>
+);
+
 interface Account {
   accountId: string;
   name: string;
@@ -146,10 +162,10 @@ export default function Transactions() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>("2023-04");
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<"month" | "custom" | "all">(
-    "month"
+    "all"
   );
   const [customDateFrom, setCustomDateFrom] = useState<string>("");
   const [customDateTo, setCustomDateTo] = useState<string>("");
@@ -165,6 +181,20 @@ export default function Transactions() {
     "all"
   );
   const [filterCategory, setFilterCategory] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+
+  // Debounce search input (150ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 150);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Pagination
+  const PAGE_SIZE = 100;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Get unique categories from accounts (filtered by is_real)
   const categories = useMemo(() => {
@@ -228,6 +258,7 @@ export default function Transactions() {
     if (sortBy !== "date" || sortDirection !== "desc") count++;
     if (filterIsReal !== "all") count++;
     if (filterCategory) count++;
+    if (searchQuery) count++;
     return count;
   }, [
     selectedAccount,
@@ -238,12 +269,13 @@ export default function Transactions() {
     sortDirection,
     filterIsReal,
     filterCategory,
+    searchQuery,
   ]);
 
   const resetFilters = () => {
     setSelectedAccount("");
-    setDateFilter("month");
-    setSelectedMonth("2023-04");
+    setDateFilter("all");
+    setSelectedMonth("");
     setCustomDateFrom("");
     setCustomDateTo("");
     setAmountMin("");
@@ -252,6 +284,7 @@ export default function Transactions() {
     setSortDirection("desc");
     setFilterIsReal("all");
     setFilterCategory("");
+    setSearchQuery("");
   };
 
   const fetchAccounts = useCallback(async () => {
@@ -279,6 +312,10 @@ export default function Transactions() {
     try {
       const params = new URLSearchParams();
 
+      // Pagination
+      params.append("limit", PAGE_SIZE.toString());
+      params.append("offset", ((currentPage - 1) * PAGE_SIZE).toString());
+
       // Gestion du filtre de date
       if (dateFilter === "month" && selectedMonth) {
         const [year, month] = selectedMonth.split("-");
@@ -295,6 +332,10 @@ export default function Transactions() {
 
       if (selectedAccount) {
         params.append("account_id", selectedAccount);
+      }
+
+      if (debouncedSearch.trim()) {
+        params.append("description_filter", debouncedSearch.trim());
       }
 
       const response = await fetch(
@@ -315,26 +356,9 @@ export default function Transactions() {
         );
       }
 
-      const data = await response.json();
-      console.log("=== TRANSACTIONS DEBUG ===");
-      console.log("Filter params:", {
-        dateFilter,
-        selectedMonth,
-        date_from: params.get("date_from"),
-        date_to: params.get("date_to"),
-      });
-      console.log("Transactions count:", data.length);
-      data.forEach((t: Transaction) => {
-        console.log(`Transaction: ${t.transactionId}`, {
-          date: t.date,
-          amount: t.amount,
-          description: t.description?.substring(0, 30),
-          slavesCount: t.TransactionsSlaves?.length,
-          slavesDates: t.TransactionsSlaves?.map((s) => s.date),
-        });
-      });
-      console.log("=== END DEBUG ===");
-      setTransactions(data);
+      const result = await response.json();
+      setTransactions(result.data || []);
+      setTotalCount(result.total || 0);
       setError(null);
     } catch (error) {
       setError(
@@ -344,11 +368,27 @@ export default function Transactions() {
       setLoading(false);
     }
   }, [
+    currentPage,
     selectedMonth,
     selectedAccount,
     dateFilter,
     customDateFrom,
     customDateTo,
+    debouncedSearch,
+  ]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    selectedMonth,
+    selectedAccount,
+    dateFilter,
+    customDateFrom,
+    customDateTo,
+    filterIsReal,
+    filterCategory,
+    debouncedSearch,
   ]);
 
   useEffect(() => {
@@ -474,8 +514,9 @@ export default function Transactions() {
           <h2 className="text-3xl font-bold text-gray-800">Transactions</h2>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>
-              {sortedTransactions.length} transaction
-              {sortedTransactions.length > 1 ? "s" : ""}
+              {sortedTransactions.length} sur {totalCount} transaction
+              {totalCount > 1 ? "s" : ""}
+              {totalPages > 1 && ` (page ${currentPage}/${totalPages})`}
             </span>
           </div>
         </div>
@@ -507,6 +548,48 @@ export default function Transactions() {
           >
             <div className="px-5 pb-5 border-t border-gray-100">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-5">
+                {/* Search Input */}
+                <div className="lg:col-span-3 pb-4 border-b border-gray-100">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <SearchIcon />
+                      Rechercher
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Rechercher dans les descriptions..."
+                        className="w-full px-3 py-2.5 pl-10 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      />
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                        <SearchIcon />
+                      </div>
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Account Filters Row */}
                 <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-gray-100">
                   {/* Type de compte (is_real) */}
@@ -871,6 +954,87 @@ export default function Transactions() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === 1
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                ««
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === 1
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                «
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === pageNum
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
+                disabled={currentPage === totalPages}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === totalPages
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                »
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentPage === totalPages
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                »»
+              </button>
+            </div>
           )}
         </div>
       </main>
