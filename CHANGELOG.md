@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/JeremyBon/Ploutos/compare/ploutos-v0.4.0...ploutos-v0.4.1) (2025-12-26)
+
+
+### 🐛 Bug Fixes
+
+* 🐛add credit to bduegt calculation ([bde76ad](https://github.com/JeremyBon/Ploutos/commit/bde76ad1360b9040e98a31cc64196f6dc431ad6c))
+* 🐛add credit to budget calculation ([daabe01](https://github.com/JeremyBon/Ploutos/commit/daabe01c53566d50407bef7493057fdc8cd1101c))
+
 ## [0.4.0](https://github.com/JeremyBon/Ploutos/compare/ploutos-v0.3.1...ploutos-v0.4.0) (2025-12-26)
 
 
