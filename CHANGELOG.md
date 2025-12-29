@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/JeremyBon/Ploutos/compare/ploutos-v0.4.1...ploutos-v0.4.2) (2025-12-29)
+
+
+### 🐛 Bug Fixes
+
+* transaction edit on cca menu ([2e8ae88](https://github.com/JeremyBon/Ploutos/commit/2e8ae88870d47a301e561cc662920434b283c1b8))
+* transaction edit on cca menu ([2b97435](https://github.com/JeremyBon/Ploutos/commit/2b974353ffd39f4378b40f6458497043e8b5e957))
+
 ## [0.4.1](https://github.com/JeremyBon/Ploutos/compare/ploutos-v0.4.0...ploutos-v0.4.1) (2025-12-26)
 
 
