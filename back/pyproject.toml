@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ploutos"
-version = "0.4.1"
+version = "0.4.2"
 description = ""
 authors = ["Jérémy Bon <jeremy.bon1069@gmail.com>"]
 readme = "README.md"
