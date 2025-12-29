@@ -752,12 +752,12 @@ export default function Home() {
     // Préparer la transaction pour le modal
     const transactionForModal = {
       transactionId: transaction.transactionId,
-      description: transaction.description,
-      date: transaction.date,
-      amount: transaction.amount,
-      type: transaction.type,
+      description: masterTransaction?.description || transaction.description,
+      date: masterTransaction?.date || transaction.date,
+      amount: masterTransaction?.amount || transaction.amount,
+      type: masterTransaction?.type || transaction.type,
       accountId: masterTransaction?.accountId || transaction.accountId,
-      accountName: transaction.accountName,
+      accountName: masterAccount?.name || transaction.accountName,
       category: masterAccount?.category || transaction.category,
       subCategory: masterAccount?.sub_category || transaction.subCategory,
       TransactionsSlaves: masterTransaction?.TransactionsSlaves || [],
@@ -1264,7 +1264,12 @@ export default function Home() {
                                       {cat.transactions.map((tx) => (
                                         <div
                                           key={tx.master_id}
-                                          className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs"
+                                          className="flex justify-between items-center p-2 bg-orange-25 border border-orange-200 rounded text-xs cursor-pointer hover:bg-orange-100 transition-colors"
+                                          onClick={() =>
+                                            handleEditTransaction({
+                                              transactionId: tx.master_id,
+                                            } as DetailedTransaction)
+                                          }
                                         >
                                           <div className="flex-1 min-w-0">
                                             <p className="font-medium text-gray-700 truncate">
@@ -1368,7 +1373,12 @@ export default function Home() {
                                       {cat.transactions.map((tx) => (
                                         <div
                                           key={tx.master_id}
-                                          className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs"
+                                          className="flex justify-between items-center p-2 bg-blue-25 border border-blue-200 rounded text-xs cursor-pointer hover:bg-blue-100 transition-colors"
+                                          onClick={() =>
+                                            handleEditTransaction({
+                                              transactionId: tx.master_id,
+                                            } as DetailedTransaction)
+                                          }
                                         >
                                           <div className="flex-1 min-w-0">
                                             <p className="font-medium text-gray-700 truncate">
